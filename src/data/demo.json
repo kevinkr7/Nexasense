@@ -1,0 +1,104 @@
+{
+  "title": "Binary Trees — Class Notes",
+  "subject": "Computer Science",
+  "learning_style": "Visual",
+  "status": "Ready",
+  "summary_compact": [
+    "Binary tree is hierarchical data structure with at most two children per node",
+    "Binary Search Tree (BST) maintains sorted order: left < root < right",
+    "Common operations: insert O(log n), search O(log n), delete O(log n) average case",
+    "Tree traversals: inorder (sorted output), preorder, postorder, level-order",
+    "Balanced trees (AVL, Red-Black) maintain O(log n) worst-case performance"
+  ],
+  "summary_detailed": "Binary trees are fundamental hierarchical data structures where each node has at most two children, traditionally called left and right. A Binary Search Tree (BST) is a special type of binary tree that maintains a sorted order property: for any node, all values in the left subtree are smaller, and all values in the right subtree are larger. This property enables efficient searching, insertion, and deletion operations with average time complexity of O(log n). Tree traversal methods include inorder (left-root-right), which produces sorted output for BSTs, preorder (root-left-right), postorder (left-right-root), and level-order (breadth-first). Balanced tree variants like AVL and Red-Black trees maintain logarithmic height to ensure optimal performance even in worst-case scenarios.",
+  "mindmap": {
+    "nodes": [
+      { "id": "root", "label": "Binary Trees", "type": "root", "x": 400, "y": 200 },
+      { "id": "definition", "label": "Definition", "type": "main", "x": 200, "y": 100 },
+      { "id": "bst", "label": "Binary Search Tree", "type": "main", "x": 600, "y": 100 },
+      { "id": "operations", "label": "Operations", "type": "main", "x": 200, "y": 300 },
+      { "id": "traversals", "label": "Traversals", "type": "main", "x": 600, "y": 300 },
+      { "id": "hierarchical", "label": "Hierarchical Structure", "type": "detail", "x": 100, "y": 50 },
+      { "id": "two-children", "label": "≤ 2 Children per Node", "type": "detail", "x": 300, "y": 50 },
+      { "id": "sorted-order", "label": "Sorted Order Property", "type": "detail", "x": 500, "y": 50 },
+      { "id": "left-smaller", "label": "Left < Root < Right", "type": "detail", "x": 700, "y": 50 },
+      { "id": "insert", "label": "Insert O(log n)", "type": "detail", "x": 100, "y": 350 },
+      { "id": "search", "label": "Search O(log n)", "type": "detail", "x": 200, "y": 400 },
+      { "id": "delete", "label": "Delete O(log n)", "type": "detail", "x": 300, "y": 350 },
+      { "id": "inorder", "label": "Inorder (sorted)", "type": "detail", "x": 500, "y": 350 },
+      { "id": "preorder", "label": "Preorder", "type": "detail", "x": 600, "y": 400 },
+      { "id": "postorder", "label": "Postorder", "type": "detail", "x": 700, "y": 350 }
+    ],
+    "edges": [
+      { "source": "root", "target": "definition" },
+      { "source": "root", "target": "bst" },
+      { "source": "root", "target": "operations" },
+      { "source": "root", "target": "traversals" },
+      { "source": "definition", "target": "hierarchical" },
+      { "source": "definition", "target": "two-children" },
+      { "source": "bst", "target": "sorted-order" },
+      { "source": "bst", "target": "left-smaller" },
+      { "source": "operations", "target": "insert" },
+      { "source": "operations", "target": "search" },
+      { "source": "operations", "target": "delete" },
+      { "source": "traversals", "target": "inorder" },
+      { "source": "traversals", "target": "preorder" },
+      { "source": "traversals", "target": "postorder" }
+    ]
+  },
+  "videos": [
+    {
+      "title": "Binary Trees Explained - Data Structures",
+      "thumbnail": "https://i.ytimg.com/vi/H5JubkIy_p8/maxresdefault.jpg",
+      "channel": "CS Dojo",
+      "duration": "15:42",
+      "url": "https://youtube.com/watch?v=H5JubkIy_p8"
+    },
+    {
+      "title": "Binary Search Trees - Insert and Search",
+      "thumbnail": "https://i.ytimg.com/vi/wcIRPqTR3Kc/maxresdefault.jpg", 
+      "channel": "mycodeschool",
+      "duration": "12:18",
+      "url": "https://youtube.com/watch?v=wcIRPqTR3Kc"
+    },
+    {
+      "title": "Tree Traversals (Inorder, Preorder, Postorder)",
+      "thumbnail": "https://i.ytimg.com/vi/9RHO6jU--GU/maxresdefault.jpg",
+      "channel": "GeeksforGeeks",
+      "duration": "8:33",
+      "url": "https://youtube.com/watch?v=9RHO6jU--GU"
+    }
+  ],
+  "quizzes": [
+    {
+      "question": "What is the maximum number of children a node can have in a binary tree?",
+      "options": ["1", "2", "3", "Unlimited"],
+      "correct": 1,
+      "explanation": "By definition, a binary tree allows at most 2 children per node: left and right child."
+    },
+    {
+      "question": "In a Binary Search Tree, which traversal method produces sorted output?",
+      "options": ["Preorder", "Inorder", "Postorder", "Level-order"],
+      "correct": 1,
+      "explanation": "Inorder traversal (left-root-right) visits nodes in ascending order for a BST."
+    },
+    {
+      "question": "What is the average time complexity for search in a balanced BST?",
+      "options": ["O(1)", "O(log n)", "O(n)", "O(n log n)"],
+      "correct": 1,
+      "explanation": "In a balanced BST, search operations eliminate roughly half the remaining nodes at each step."
+    },
+    {
+      "question": "Which property must hold true for every node in a Binary Search Tree?",
+      "options": ["Left child > Right child", "Left subtree < Node < Right subtree", "Height is minimized", "All leaves are at same level"],
+      "correct": 1,
+      "explanation": "BST ordering property: all values in left subtree are smaller than the node, all values in right subtree are larger."
+    },
+    {
+      "question": "What happens to BST performance in worst-case scenarios (like inserting sorted data)?",
+      "options": ["Stays O(log n)", "Degrades to O(n)", "Becomes O(1)", "Becomes O(n²)"],
+      "correct": 1,
+      "explanation": "Without balancing, inserting sorted data creates a linear chain, degrading to O(n) operations."
+    }
+  ]
+}

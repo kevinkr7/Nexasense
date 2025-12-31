@@ -1,0 +1,194 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/noto-sans/400.css';
+@import '@fontsource/noto-sans/500.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* NexaSense Design System - All colors, gradients, fonts, animations defined here */
+
+@layer base {
+  :root {
+    /* Brand Colors */
+    --nexasense-blue: 218 100% 54%; /* #0F62FE */
+    --nexasense-mint: 170 100% 38%; /* #00C2A8 */
+    --nexasense-dark: 216 48% 10%; /* #0F1724 */
+    --nexasense-light: 210 20% 98%; /* #F8FAFC */
+    
+    /* Semantic Colors */
+    --background: 210 20% 98%;
+    --foreground: 216 48% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 216 48% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 48% 10%;
+
+    --primary: 218 100% 54%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 216 48% 10%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 170 100% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 218 100% 54%;
+
+    --radius: 1rem;
+    
+    /* Glass & Effects */
+    --glass-bg: 255 255 255 / 0.1;
+    --glass-border: 255 255 255 / 0.2;
+    --shadow-soft: 0 4px 20px hsl(216 48% 10% / 0.1);
+    --shadow-lift: 0 8px 40px hsl(216 48% 10% / 0.15);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.3);
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 20% 98%));
+    --gradient-feature: linear-gradient(180deg, hsl(var(--primary) / 0.05), transparent);
+
+    /* Animation */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    /* Brand Colors - Dark Mode */
+    --nexasense-blue: 218 100% 64%; /* Lighter blue for dark mode */
+    --nexasense-mint: 170 100% 48%; /* Lighter mint for dark mode */
+    --nexasense-dark: 216 48% 10%;
+    --nexasense-light: 216 48% 8%;
+    
+    /* Semantic Colors - Dark Mode */
+    --background: 216 48% 6%;
+    --foreground: 210 20% 98%;
+
+    --card: 216 48% 8%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 216 48% 8%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 218 100% 64%;
+    --primary-foreground: 216 48% 10%;
+
+    --secondary: 216 32% 17%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 216 32% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 170 100% 48%;
+    --accent-foreground: 216 48% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
+
+    --border: 216 32% 17%;
+    --input: 216 32% 17%;
+    --ring: 218 100% 64%;
+
+    /* Glass & Effects - Dark Mode */
+    --glass-bg: 0 0 0 / 0.2;
+    --glass-border: 255 255 255 / 0.1;
+    --shadow-soft: 0 4px 20px hsl(0 0% 0% / 0.3);
+    --shadow-lift: 0 8px 40px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 40px hsl(var(--primary) / 0.4);
+    
+    /* Gradients - Dark Mode */
+    --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    --gradient-card: linear-gradient(145deg, hsl(216 48% 8%), hsl(216 48% 6%));
+    --gradient-feature: linear-gradient(180deg, hsl(var(--primary) / 0.1), transparent);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+@layer components {
+  /* Glass Effect */
+  .glass {
+    background: rgba(var(--glass-bg));
+    border: 1px solid rgba(var(--glass-border));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Hover Scale Animation */
+  .hover-scale {
+    transition: var(--transition-smooth);
+  }
+  
+  .hover-scale:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-lift);
+  }
+
+  /* Gradient Backgrounds */
+  .bg-gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+  
+  .bg-gradient-feature {
+    background: var(--gradient-feature);
+  }
+
+  /* Shadows */
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-lift {
+    box-shadow: var(--shadow-lift);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+}
