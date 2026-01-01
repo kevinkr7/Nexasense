@@ -37,6 +37,7 @@ NexaSense is designed to reduce cognitive load, improve retention, and provide a
 ---
 
 ## 📂 Project Structure
+```bash
 nexa-study-craft-main/
 ├── public/ # Static assets
 ├── src/
@@ -47,7 +48,7 @@ nexa-study-craft-main/
 │ └── App.tsx # Entry point
 ├── package.json # Dependencies and scripts
 ├── README.md # Project documentation
-
+```
 ---
 
 ## ⚡ Getting Started
