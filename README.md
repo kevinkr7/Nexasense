@@ -1,116 +1,120 @@
 # NexaSense  
-**AI-Driven Platform for Structured Content Interpretation and Learning Facilitation**
+AI-Driven Platform for Structured Content Interpretation and Personalized Learning
 
 ---
 
 ## 📖 Overview
-NexaSense is an AI-powered web application that transforms unstructured study materials into **structured, interactive study packs**.  
-Students can upload handwritten notes or digital documents, and the platform intelligently generates:
-- Concise **bullet-point summaries**
-- **Interactive mind-maps** for visual learning
-- **Relevant YouTube resources**
-- Auto-generated **quizzes** for self-assessment
+NexaSense is an AI-powered web application that transforms handwritten and digital study materials into **accurate, concise, and exam-ready learning content**.
 
-NexaSense is designed to reduce cognitive load, improve retention, and provide a **personalized learning experience** tailored to individual study preferences.
+The platform not only summarizes notes, but also **verifies and enriches them using trusted academic sources**, ensuring correctness and consistency even when original notes are incomplete or inaccurate.  
+Additionally, NexaSense tracks individual learning behavior to deliver a **personalized learning experience**.
 
 ---
 
-## 🚀 Features
-- 📄 **Smart Summarization** – Convert notes into simplified bullet points  
-- 🧩 **Mind-Map Generator** – Visualize topics and relationships interactively  
-- 🎥 **YouTube Integration** – Auto-suggest relevant tutorial videos  
-- 🎯 **Dynamic Quiz Generator** – Practice with AI-generated MCQs & short answers  
-- 🎨 **Learning Style Adaptation** – Text, visual, or audio summaries  
-- 🤝 **Collaborative Mode** – Merge multiple students’ notes into one study pack  
-- 📤 **Export Options** – Download as PDF, PNG, or JSON  
+## 🚀 Core Features (MVP Scope)
+- 📄 **Note Upload & OCR**  
+  Upload handwritten or digital notes (image/PDF) and extract text using OCR.
+
+- 🧠 **AI-Based Summarization & Simplification**  
+  Convert raw notes into structured, easy-to-understand summaries using NLP models.
+
+- 🔍 **Knowledge Verification & Enrichment (RAG-style)**  
+  Retrieve relevant information from a curated academic knowledge base to correct and enhance user notes.
+
+- 🎯 **Personalized Learning Experience**  
+  Adapt content structure based on user preferences such as learning style and exam urgency.
+
+- 📊 **Learning Progress Tracking**  
+  Track learning behavior including revisions, time spent, and assessment performance.
+
+- 🧪 **Assessment Integration (Evalion)**  
+  Integrate with an external assessment platform to evaluate learning outcomes and adapt content accordingly.
 
 ---
 
 ## 🛠️ Tech Stack
-- **Frontend**: React + Vite + Tailwind CSS (UI built with shadcn components)  
-- **Backend**: Flask / FastAPI (for AI and OCR APIs)  
-- **AI/ML**: Hugging Face Transformers (summarization), Tesseract / Google Vision (OCR), spaCy/KeyBERT (keyword extraction)  
-- **Visualization**: D3.js / Cytoscape.js (mind-maps)  
-- **Database**: Firebase / MongoDB  
-- **APIs**: YouTube Data API, TTS API  
+
+### Frontend
+- React  
+- TypeScript  
+- Tailwind CSS  
+- Vite  
+
+### Backend
+- FastAPI (Python)
+
+### Authentication & User Management
+- Firebase Authentication
+
+### Database
+- Firebase Firestore (user data & learning analytics)
+- ChromaDB (vector database for semantic retrieval)
+
+### OCR
+- Tesseract OCR  
+- OpenCV (preprocessing)
+
+### NLP & AI
+- Hugging Face Transformers  
+  - `facebook/bart-large-cnn` – Summarization  
+  - `t5-small` – Text simplification  
+- Sentence Transformers  
+  - `all-MiniLM-L6-v2` – Embeddings for semantic search
+
+### Deployment
+- Frontend: Firebase Hosting / Vercel  
+- Backend: Render / Railway  
+- Auth & Database: Firebase  
 
 ---
 
 ## 📂 Project Structure
 ```bash
-nexa-study-craft-main/
-├── public/ # Static assets
-├── src/
-│ ├── components/ # Reusable UI components
-│ ├── pages/ # Application pages (Landing, Dashboard, Upload, Results)
-│ ├── lib/ # API helpers and utilities
-│ ├── assets/ # Images, icons
-│ └── App.tsx # Entry point
-├── package.json # Dependencies and scripts
-├── README.md # Project documentation
+nexasense/
+├── frontend/ # React + TypeScript frontend
+├── backend/ # FastAPI backend & AI pipelines
+├── datasets/ # Curated academic knowledge sources
+├── docs/ # Architecture & documentation
+└── README.md
 ```
----
-
-## ⚡ Getting Started
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/kevinkr7/nexasense.git
-cd nexasense
-2. Install dependencies
-npm install
-
-3. Run development server
-npm run dev
-
-
-Visit http://localhost:5173
- in your browser.
-
-4. Build for production
-npm run build
-npm run preview
-
-📊 Demo Workflow
-
-Upload Notes – Upload scanned handwritten notes or digital files (PDF/DOC/TXT).
-
-Processing – OCR + NLP pipeline extracts text and generates structured summary.
-
-Visualization – Interactive mind-map is created from keywords and concepts.
-
-Resource Enrichment – YouTube tutorials and quizzes are added.
-
-Learning Pack – User explores adaptive summaries, videos, and quizzes in one place.
-
-🧑‍🤝‍🧑 Team Members
-
-[Kevin K R] – Frontend & UI/UX
-
-[Lakshmi Priya S] – Backend & AI Integration
-
-[Mukesh Kumar S] – Visualization & API Integrations
-
-🎯 Objectives
-
-To create an intelligent platform that simplifies and visualizes study materials.
-
-To personalize the learning experience through adaptive content and active recall.
-
-📌 Future Enhancements
-
-Multi-language OCR and summarization support
-
-Voice-based study assistant with Q&A capability
-
-Integration with learning management systems (LMS)
-
-Mobile app version
-
-📜 License
-
-This project is for academic and research purposes. All rights reserved by Team NexaSense.
 
 
 ---
 
+## ⚙️ Demo Workflow
+1. User logs in and sets learning preferences  
+2. Uploads handwritten or digital notes  
+3. OCR extracts raw text  
+4. AI pipeline summarizes and simplifies content  
+5. Knowledge retrieval module enriches and corrects notes  
+6. User studies personalized learning material  
+7. Assessments are conducted via Evalion and progress is tracked  
+
+---
+
+## 🧑‍🤝‍🧑 Team Members
+- **Kevin K R** – Backend development, AI/NLP pipelines, knowledge retrieval (RAG), system integration, and deployment  
+- **Lakshmi Priya S** – Frontend development, authentication, dashboard design, user experience, and data visualization  
+- **Mukesh Kumar S** – Research support, feature exploration, documentation assistance, and testing feedback  
+
+---
+
+## 🎯 Objectives
+- Reduce cognitive load during exam preparation  
+- Improve accuracy of study material  
+- Provide adaptive, student-centric learning support  
+
+---
+
+## 📌 Future Enhancements
+- Interactive mind-map visualization  
+- YouTube-based learning resource recommendations  
+- Multi-language OCR and summarization  
+- Advanced learning analytics and recommendations  
+- Mobile application support  
+
+---
+
+## 📜 License
+This project is developed for academic and research purposes.  
+All rights reserved by Team NexaSense.
