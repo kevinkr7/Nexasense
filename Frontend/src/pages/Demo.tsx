@@ -2,15 +2,12 @@ import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
 
-import { Navigation } from "@/components/Navigation";
-import { StudyPackViewer } from "@/components/StudyPackViewer";
-
 const Demo = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [user, setUser] = useState<any>(null);
   const [error, setError] = useState("");
 
+  // 🔒 OPTIONAL: protected API test (frontend only)
   const callProtectedAPI = async () => {
     const token = localStorage.getItem("nexasense_token");
     console.log("Token from localStorage:", token);
@@ -27,13 +24,14 @@ const Demo = () => {
       const data = await response.json();
       console.log("Protected API response:", data);
     } catch (err) {
-      console.error("API call failed:", err);
+      console.warn("API not running (expected for frontend-only work)");
     }
   };
 
   const handleLogin = async () => {
     setError("");
     try {
+      // 🔐 Firebase login
       const userCredential = await signInWithEmailAndPassword(
         auth,
         email,
@@ -42,27 +40,22 @@ const Demo = () => {
 
       const firebaseUser = userCredential.user;
 
+      // 🔑 Get Firebase ID token
       const token = await firebaseUser.getIdToken();
       console.log("Firebase ID Token:", token);
 
+      // 💾 Store token
       localStorage.setItem("nexasense_token", token);
 
-      setUser(firebaseUser);
-
+      // 🧪 Optional API test
       await callProtectedAPI();
+
+      // 🚀 REDIRECT TO DASHBOARD
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError("Invalid email or password");
     }
   };
-
-  if (user) {
-    return (
-      <>
-        <Navigation />
-        <StudyPackViewer />
-      </>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center">
@@ -75,7 +68,7 @@ const Demo = () => {
           <input
             type="email"
             placeholder="Email"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -83,7 +76,7 @@ const Demo = () => {
           <input
             type="password"
             placeholder="Password"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -94,7 +87,7 @@ const Demo = () => {
 
           <button
             onClick={handleLogin}
-            className="w-full bg-blue-600 text-white py-3 rounded-lg"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200"
           >
             Sign In
           </button>

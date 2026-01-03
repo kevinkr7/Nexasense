@@ -1,6 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "@/firebase";
 
 export const Navigation = () => {
   const navigate = useNavigate();
@@ -8,11 +10,25 @@ export const Navigation = () => {
 
   const isDemo = location.pathname === "/demo";
 
+  // ✅ CHECK LOGIN STATE
+  const isLoggedIn = !!localStorage.getItem("nexasense_token");
+
+  // ✅ LOGOUT HANDLER
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem("nexasense_token");
+      window.location.href = "/demo";
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  };
+
   return (
     <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          
+
           {/* LEFT SIDE */}
           <div className="flex items-center space-x-4">
             {isDemo && (
@@ -42,25 +58,36 @@ export const Navigation = () => {
           </div>
 
           {/* RIGHT SIDE */}
-          {!isDemo && (
-            <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-3">
+            {!isLoggedIn ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate("/demo")}
+                >
+                  Sign In
+                </Button>
+
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate("/demo")}
+                >
+                  Get Started
+                </Button>
+              </>
+            ) : (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate("/demo")}
+                onClick={handleLogout}
               >
-                Sign In
+                Logout
               </Button>
+            )}
+          </div>
 
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => navigate("/demo")}
-              >
-                Get Started
-              </Button>
-            </div>
-          )}
         </div>
       </div>
     </nav>
