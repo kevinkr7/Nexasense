@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Demo from "./pages/Demo";
 import Dashboard from "./pages/Dashboard";
+import NoteViewer from "./pages/NoteViewer";
 import NotFound from "./pages/NotFound";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -25,12 +26,21 @@ const App = () => {
             <Route path="/" element={<Index />} />
             <Route path="/demo" element={<Demo />} />
 
-            {/* Protected Route */}
+            {/* Protected Routes */}
             <Route
               path="/dashboard"
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/notes/:id"
+              element={
+                <ProtectedRoute>
+                  <NoteViewer />
                 </ProtectedRoute>
               }
             />

@@ -8,12 +8,14 @@ export const Navigation = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Route checks
   const isDemo = location.pathname === "/demo";
+  const isHome = location.pathname === "/";
 
-  // ✅ CHECK LOGIN STATE
+  // Auth check
   const isLoggedIn = !!localStorage.getItem("nexasense_token");
 
-  // ✅ LOGOUT HANDLER
+  // Logout handler
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -28,7 +30,7 @@ export const Navigation = () => {
     <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-
+          
           {/* LEFT SIDE */}
           <div className="flex items-center space-x-4">
             {isDemo && (
@@ -59,7 +61,11 @@ export const Navigation = () => {
 
           {/* RIGHT SIDE */}
           <div className="flex items-center space-x-3">
-            {!isLoggedIn ? (
+            {isLoggedIn && !isHome ? (
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
+                Logout
+              </Button>
+            ) : (
               <>
                 <Button
                   variant="ghost"
@@ -68,7 +74,6 @@ export const Navigation = () => {
                 >
                   Sign In
                 </Button>
-
                 <Button
                   variant="default"
                   size="sm"
@@ -77,14 +82,6 @@ export const Navigation = () => {
                   Get Started
                 </Button>
               </>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleLogout}
-              >
-                Logout
-              </Button>
             )}
           </div>
 

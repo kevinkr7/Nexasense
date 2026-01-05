@@ -1,23 +1,58 @@
+import { useEffect, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import ProgressChart from "@/components/ProgressChart";
+import NotesList from "@/components/NotesList";
 
 const Dashboard = () => {
-  // ✅ Mock stats (temporary – backend will replace later)
+  // 🔹 Profile data from backend
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  // 🔹 Mock stats (will be replaced later by backend)
   const stats = {
     notesUploaded: 3,
     topicsLearned: 8,
     progress: 45,
   };
 
+  // 🔹 Fetch profile from backend
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem("nexasense_token");
+
+      try {
+        const response = await fetch("http://localhost:8000/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await response.json();
+        setProfile(data);
+      } catch (error) {
+        console.error("Failed to fetch profile", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* NAVBAR */}
       <Navigation />
 
       <div className="max-w-6xl mx-auto p-6">
+        {/* TITLE */}
         <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
 
+        {/* PROFILE WELCOME */}
         <p className="text-gray-600 mb-6">
-          Welcome to NexaSense. Your learning journey starts here.
+          {loading
+            ? "Loading profile..."
+            : `Welcome ${profile?.email}`}
         </p>
 
         {/* STATS CARDS */}
@@ -51,6 +86,9 @@ const Dashboard = () => {
         <div className="mt-8">
           <ProgressChart />
         </div>
+
+        {/* NOTES LIST */}
+        <NotesList />
       </div>
     </div>
   );
