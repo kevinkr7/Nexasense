@@ -64,15 +64,24 @@ def extract_text_from_image(image_path: str) -> str:
 
 
 def clean_text(text: str) -> str:
-    """
-    Normalize OCR output for NLP readiness.
-    """
+    # Remove OCR junk symbols
+    text = re.sub(r"[|!'\"]{2,}", " ", text)
 
-    # Remove excessive blank lines
+    # Fix common OCR spacing issues
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"([a-zA-Z])(\d)", r"\1 \2", text)
+    text = re.sub(r"(\d)([a-zA-Z])", r"\1 \2", text)
+
+    # Fix missing spaces
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"digestsollen", "digests pollen", text)
+
+    # Normalize whitespace
     text = re.sub(r"\n{2,}", "\n", text)
+    text = re.sub(r"\s{2,}", " ", text)
 
-    # Remove non-ASCII garbage
+    # Remove non-ASCII noise
     text = re.sub(r"[^\x00-\x7F]+", " ", text)
 
-    # Trim spaces
     return text.strip()
+

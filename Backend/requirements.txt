@@ -9,5 +9,8 @@ opencv-python
 Pillow
 pdf2image
 numpy
+transformers
+torch
+sentencepiece
 
 
