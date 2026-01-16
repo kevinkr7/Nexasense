@@ -1,6 +1,8 @@
 import { ArrowLeft, Bell, Moon, Sun, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/firebase";
 
 export const Navigation = () => {
   const navigate = useNavigate();
@@ -38,7 +40,7 @@ export const Navigation = () => {
   const showBackToHome = isLoggedIn && !isHome;
 
   return (
-    <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="border-b bg-white/80 dark:bg-nexasense-dark/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           
