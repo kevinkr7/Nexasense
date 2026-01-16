@@ -28,21 +28,21 @@ const NotesList = () => {
         {notes.map((note) => (
           <div
             key={note.id}
-            className="bg-white p-6 rounded-xl shadow hover:shadow-md transition"
+            className="bg-card p-6 rounded-xl shadow hover:shadow-md transition"
           >
             <h3 className="text-lg font-semibold mb-1">
               {note.title}
             </h3>
 
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-muted-foreground">
               {note.subject}
             </p>
 
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               {note.date}
             </p>
 
-            <button className="mt-4 text-blue-600 text-sm font-medium">
+            <button className="mt-4 text-primary text-sm font-medium">
               View Notes →
             </button>
           </div>

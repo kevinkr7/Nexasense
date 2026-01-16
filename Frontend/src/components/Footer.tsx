@@ -10,20 +10,20 @@ export const Footer = () => {
             <h3 className="text-2xl font-heading font-bold bg-gradient-hero bg-clip-text text-transparent">
               NexaSense
             </h3>
-            <p className="text-gray-300 font-body leading-relaxed">
+            <p className="text-muted-foreground font-body leading-relaxed">
               AI-powered study packs that transform your notes into interactive learning experiences.
             </p>
             <div className="flex space-x-4">
               <a 
                 href="#" 
-                className="text-gray-400 hover:text-accent transition-colors p-2 rounded-lg hover:bg-white/10"
+                className="text-muted-foreground hover:text-accent transition-colors p-2 rounded-lg hover:bg-accent/10"
                 aria-label="GitHub"
               >
                 <Github className="w-5 h-5" />
               </a>
               <a 
                 href="#" 
-                className="text-gray-400 hover:text-accent transition-colors p-2 rounded-lg hover:bg-white/10"
+                className="text-muted-foreground hover:text-accent transition-colors p-2 rounded-lg hover:bg-accent/10"
                 aria-label="Email"
               >
                 <Mail className="w-5 h-5" />
@@ -37,7 +37,7 @@ export const Footer = () => {
               <Users className="w-5 h-5" />
               Team
             </h4>
-            <div className="space-y-2 text-gray-300">
+            <div className="space-y-2 text-muted-foreground">
               <a href="#" className="block hover:text-accent transition-colors">About Us</a>
               <a href="#" className="block hover:text-accent transition-colors">Careers</a>
               <a href="#" className="block hover:text-accent transition-colors">Blog</a>
@@ -47,7 +47,7 @@ export const Footer = () => {
           {/* Support */}
           <div className="space-y-4">
             <h4 className="text-lg font-heading font-semibold">Support</h4>
-            <div className="space-y-2 text-gray-300">
+            <div className="space-y-2 text-muted-foreground">
               <a href="#" className="block hover:text-accent transition-colors">Help Center</a>
               <a href="#" className="block hover:text-accent transition-colors">Contact</a>
               <a href="#" className="block hover:text-accent transition-colors">Status</a>
@@ -60,7 +60,7 @@ export const Footer = () => {
               <Shield className="w-5 h-5" />
               Legal
             </h4>
-            <div className="space-y-2 text-gray-300">
+            <div className="space-y-2 text-muted-foreground">
               <a href="#" className="block hover:text-accent transition-colors">Privacy Policy</a>
               <a href="#" className="block hover:text-accent transition-colors">Terms of Service</a>
               <a href="#" className="block hover:text-accent transition-colors">Cookie Policy</a>
@@ -68,7 +68,7 @@ export const Footer = () => {
           </div>
         </div>
 
-        <div className="pt-8 border-t border-gray-700 text-center text-gray-400">
+        <div className="pt-8 border-t border-border text-center text-muted-foreground">
           <p className="font-body">
             © 2025 NexaSense. Built for students, by students 😉.
           </p>

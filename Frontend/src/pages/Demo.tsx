@@ -58,9 +58,9 @@ const Demo = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
-        <h2 className="text-2xl font-bold text-center text-blue-600 mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-background via-card to-accent/10 flex items-center justify-center">
+      <div className="w-full max-w-md bg-card rounded-2xl shadow-xl p-8">
+        <h2 className="text-2xl font-bold text-center text-primary mb-6">
           Welcome to NexaSense
         </h2>
 
@@ -68,7 +68,7 @@ const Demo = () => {
           <input
             type="email"
             placeholder="Email"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -76,24 +76,24 @@ const Demo = () => {
           <input
             type="password"
             placeholder="Password"
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-input rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-ring"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
           {error && (
-            <p className="text-sm text-red-500 text-center">{error}</p>
+            <p className="text-sm text-destructive text-center">{error}</p>
           )}
 
           <button
             onClick={handleLogin}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition duration-200"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition duration-200"
           >
             Sign In
           </button>
         </div>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Secure login powered by Firebase
         </p>
       </div>

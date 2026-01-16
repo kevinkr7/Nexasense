@@ -17,7 +17,7 @@ const data = [
 
 const ProgressChart = () => {
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
+    <div className="bg-card p-6 rounded-xl shadow">
       <h2 className="text-lg font-semibold mb-4">Learning Progress</h2>
 
       <ResponsiveContainer width="100%" height={250}>
@@ -28,7 +28,7 @@ const ProgressChart = () => {
           <Line
             type="monotone"
             dataKey="progress"
-            stroke="#2563eb"
+            stroke="hsl(var(--primary))"
             strokeWidth={3}
           />
         </LineChart>
