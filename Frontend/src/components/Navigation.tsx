@@ -9,16 +9,69 @@ export const Navigation = () => {
   const location = useLocation();
 
   // Route checks
-  const isDemo = location.pathname === "/demo";
+  const isLogin = location.pathname === "/login";
   const isHome = location.pathname === "/";
 
   // Auth check
   const isLoggedIn = !!localStorage.getItem("nexasense_token");
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") {
       return "light";
+    }
+    const storedTheme = localStorage.getItem("nexasense_theme");
+    if (storedTheme) {
+      return storedTheme;
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("nexasense_theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    if (!isProfileOpen) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!profileMenuRef.current) {
+        return;
+      }
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isProfileOpen]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
+  const showBackToHome = isLoggedIn && !isHome;
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem("nexasense_token");
+      window.location.href = "/";
+    } catch (err) {
+      console.error("Logout failed", err);
     }
     return localStorage.getItem("nexasense_theme") ?? "light";
   });
@@ -64,9 +117,9 @@ export const Navigation = () => {
               NexaSense
             </h1>
 
-            {isDemo && (
+            {isLogin && (
               <div className="px-3 py-1 bg-accent/10 text-accent rounded-full text-sm font-medium">
-                Demo Mode
+                Login
               </div>
             )}
           </div>
@@ -76,7 +129,7 @@ export const Navigation = () => {
             {!isLoggedIn ? (
               <button
                 type="button"
-                onClick={() => navigate("/demo")}
+                onClick={() => navigate("/login")}
                 className="text-sm font-semibold text-foreground hover:text-foreground/80"
               >
                 Get Started
@@ -97,7 +150,7 @@ export const Navigation = () => {
                 >
                   <Bell className="h-5 w-5" />
                 </button>
-                <div className="relative">
+                <div className="relative" ref={profileMenuRef}>
                   <button
                     type="button"
                     onClick={() => setIsProfileOpen((prev) => !prev)}
@@ -120,6 +173,13 @@ export const Navigation = () => {
                             </button>
                           )
                         )}
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          className="px-4 py-2 text-left text-destructive hover:bg-muted"
+                        >
+                          Logout
+                        </button>
                       </div>
                     </div>
                   )}

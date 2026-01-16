@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+} from "firebase/auth";
 import { auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 
-const Demo = () => {
+const Login = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -57,6 +63,20 @@ const Demo = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setError("");
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      const firebaseUser = userCredential.user;
+      const token = await firebaseUser.getIdToken();
+      localStorage.setItem("nexasense_token", token);
+      window.location.href = "/dashboard";
+    } catch (err: any) {
+      setError("Google sign-in failed");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-card to-accent/10 flex items-center justify-center">
       <div className="w-full max-w-md bg-card rounded-2xl shadow-xl p-8">
@@ -91,14 +111,28 @@ const Demo = () => {
           >
             Sign In
           </button>
+
+          <button
+            onClick={handleGoogleLogin}
+            className="w-full border border-input text-foreground font-semibold py-3 rounded-lg transition duration-200 hover:bg-muted"
+          >
+            Continue with Google
+          </button>
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Secure login powered by Firebase
+          Don't have an account?{" "}
+          <button
+            type="button"
+            onClick={() => navigate("/register")}
+            className="text-primary hover:underline"
+          >
+            Register
+          </button>
         </p>
       </div>
     </div>
   );
 };
 
-export default Demo;
+export default Login;
