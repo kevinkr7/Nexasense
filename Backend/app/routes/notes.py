@@ -1,3 +1,4 @@
+import os
 import shutil
 from fastapi import APIRouter, Depends, UploadFile, File
 from app.core.auth import verify_firebase_token
@@ -22,7 +23,9 @@ def upload_note(
 ):
     uid = user["uid"]
 
-    file_path = f"app/uploads/{file.filename}"
+    upload_dir = "app/uploads"
+    os.makedirs(upload_dir, exist_ok=True)
+    file_path = f"{upload_dir}/{file.filename}"
 
     # 1️⃣ Save uploaded file to disk
     with open(file_path, "wb") as buffer:
