@@ -16,18 +16,11 @@ export const Navigation = () => {
   const isLoggedIn = !!localStorage.getItem("nexasense_token");
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [theme, setTheme] = useState(() => {
     if (typeof window === "undefined") {
       return "light";
     }
-    const storedTheme = localStorage.getItem("nexasense_theme");
-    if (storedTheme) {
-      return storedTheme;
-    }
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return localStorage.getItem("nexasense_theme") ?? "light";
   });
 
   useEffect(() => {
@@ -40,40 +33,11 @@ export const Navigation = () => {
     localStorage.setItem("nexasense_theme", theme);
   }, [theme]);
 
-  useEffect(() => {
-    if (!isProfileOpen) {
-      return;
-    }
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!profileMenuRef.current) {
-        return;
-      }
-      if (!profileMenuRef.current.contains(event.target as Node)) {
-        setIsProfileOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [isProfileOpen]);
-
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
   const showBackToHome = isLoggedIn && !isHome;
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      localStorage.removeItem("nexasense_token");
-      window.location.href = "/";
-    } catch (err) {
-      console.error("Logout failed", err);
-    }
-  };
 
   return (
     <nav className="border-b bg-white/80 dark:bg-nexasense-dark/80 backdrop-blur-sm sticky top-0 z-50">
@@ -133,7 +97,7 @@ export const Navigation = () => {
                 >
                   <Bell className="h-5 w-5" />
                 </button>
-                <div className="relative" ref={profileMenuRef}>
+                <div className="relative">
                   <button
                     type="button"
                     onClick={() => setIsProfileOpen((prev) => !prev)}
@@ -156,13 +120,6 @@ export const Navigation = () => {
                             </button>
                           )
                         )}
-                        <button
-                          type="button"
-                          onClick={handleLogout}
-                          className="px-4 py-2 text-left text-destructive hover:bg-muted"
-                        >
-                          Logout
-                        </button>
                       </div>
                     </div>
                   )}
