@@ -73,7 +73,24 @@ export const Navigation = () => {
     } catch (err) {
       console.error("Logout failed", err);
     }
+    return localStorage.getItem("nexasense_theme") ?? "light";
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    localStorage.setItem("nexasense_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
+
+  const showBackToHome = isLoggedIn && !isHome;
 
   return (
     <nav className="border-b bg-white/80 dark:bg-nexasense-dark/80 backdrop-blur-sm sticky top-0 z-50">
