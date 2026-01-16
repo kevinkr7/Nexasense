@@ -10,6 +10,7 @@ import Register from "./pages/Register";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 import NoteViewer from "./pages/NoteViewer";
+import Summarize from "./pages/Summarize";
 import NotFound from "./pages/NotFound";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -35,6 +36,15 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/summarize"
+              element={
+                <ProtectedRoute>
+                  <Summarize />
                 </ProtectedRoute>
               }
             />
