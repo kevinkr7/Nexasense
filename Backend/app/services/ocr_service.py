@@ -1,11 +1,17 @@
 import cv2
 import pytesseract
 import re
+import os
+import shutil
 
 # IMPORTANT: Explicit Tesseract path for Windows
-pytesseract.pytesseract.tesseract_cmd = (
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+windows_tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+if os.path.exists(windows_tesseract_path):
+    pytesseract.pytesseract.tesseract_cmd = windows_tesseract_path
+else:
+    system_tesseract = shutil.which("tesseract")
+    if system_tesseract:
+        pytesseract.pytesseract.tesseract_cmd = system_tesseract
 
 
 def preprocess_image(image_path: str):
@@ -84,4 +90,3 @@ def clean_text(text: str) -> str:
     text = re.sub(r"[^\x00-\x7F]+", " ", text)
 
     return text.strip()
-
