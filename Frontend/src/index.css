@@ -16,37 +16,37 @@
     /* Brand Colors */
     --nexasense-blue: 218 100% 54%; /* #0F62FE */
     --nexasense-mint: 170 100% 38%; /* #00C2A8 */
-    --nexasense-dark: 216 48% 10%; /* #0F1724 */
-    --nexasense-light: 210 20% 98%; /* #F8FAFC */
+    --nexasense-dark: 229 27% 25%; /* #2F3551 */
+    --nexasense-light: 223 47% 97%; /* #F4F6FB */
     
     /* Semantic Colors */
-    --background: 210 20% 98%;
-    --foreground: 216 48% 10%;
+    --background: 223 47% 97%;
+    --foreground: 229 27% 25%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 216 48% 10%;
+    --card: 223 47% 99%;
+    --card-foreground: 229 27% 25%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 216 48% 10%;
+    --popover: 223 47% 99%;
+    --popover-foreground: 229 27% 25%;
 
-    --primary: 218 100% 54%;
+    --primary: 201 84% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 216 48% 10%;
+    --secondary: 223 35% 92%;
+    --secondary-foreground: 229 27% 25%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 223 30% 94%;
+    --muted-foreground: 229 18% 45%;
 
-    --accent: 170 100% 38%;
+    --accent: 261 75% 58%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 218 100% 54%;
+    --border: 223 22% 88%;
+    --input: 223 22% 88%;
+    --ring: 201 84% 60%;
 
     --radius: 1rem;
     
@@ -59,7 +59,7 @@
     
     /* Gradients */
     --gradient-hero: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 20% 98%));
+    --gradient-card: linear-gradient(145deg, hsl(223 47% 99%), hsl(223 47% 97%));
     --gradient-feature: linear-gradient(180deg, hsl(var(--primary) / 0.05), transparent);
 
     /* Animation */
