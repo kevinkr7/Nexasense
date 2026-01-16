@@ -56,8 +56,8 @@ const Login = () => {
       // 🧪 Optional API test
       await callProtectedAPI();
 
-      // 🚀 REDIRECT TO DASHBOARD
-      window.location.href = "/dashboard";
+      // 🚀 REDIRECT TO SUMMARIZE
+      navigate("/summarize");
     } catch (err: any) {
       setError("Invalid email or password");
     }
@@ -71,7 +71,7 @@ const Login = () => {
       const firebaseUser = userCredential.user;
       const token = await firebaseUser.getIdToken();
       localStorage.setItem("nexasense_token", token);
-      window.location.href = "/dashboard";
+      navigate("/summarize");
     } catch (err: any) {
       setError("Google sign-in failed");
     }
