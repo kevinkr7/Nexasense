@@ -17,12 +17,11 @@ export const Navigation = () => {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === "undefined") {
-      return "light";
-    }
+
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
     const storedTheme = localStorage.getItem("nexasense_theme");
-    if (storedTheme) {
+    if (storedTheme === "light" || storedTheme === "dark") {
       return storedTheme;
     }
     return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -41,22 +40,19 @@ export const Navigation = () => {
   }, [theme]);
 
   useEffect(() => {
-    if (!isProfileOpen) {
-      return;
-    }
+    if (!isProfileOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
-      if (!profileMenuRef.current) {
-        return;
-      }
-      if (!profileMenuRef.current.contains(event.target as Node)) {
+      if (
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(event.target as Node)
+      ) {
         setIsProfileOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isProfileOpen]);
 
   const toggleTheme = () => {
@@ -73,30 +69,12 @@ export const Navigation = () => {
     } catch (err) {
       console.error("Logout failed", err);
     }
-    return localStorage.getItem("nexasense_theme") ?? "light";
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-    localStorage.setItem("nexasense_theme", theme);
-  }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
-
-  const showBackToHome = isLoggedIn && !isHome;
 
   return (
     <nav className="border-b bg-white/80 dark:bg-nexasense-dark/80 backdrop-blur-sm sticky top-0 z-50">
       <div className="container mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
-          
           {/* LEFT SIDE */}
           <div className="flex items-center space-x-4">
             {showBackToHome && (
@@ -143,6 +121,7 @@ export const Navigation = () => {
                 >
                   Dashboard
                 </button>
+
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground"
@@ -150,6 +129,7 @@ export const Navigation = () => {
                 >
                   <Bell className="h-5 w-5" />
                 </button>
+
                 <div className="relative" ref={profileMenuRef}>
                   <button
                     type="button"
@@ -159,6 +139,7 @@ export const Navigation = () => {
                   >
                     <User className="h-4 w-4" />
                   </button>
+
                   {isProfileOpen && (
                     <div className="absolute right-0 mt-2 w-48 rounded-xl border border-border bg-background shadow-lg">
                       <div className="flex flex-col py-2 text-sm text-foreground">
@@ -186,6 +167,7 @@ export const Navigation = () => {
                 </div>
               </>
             )}
+
             <button
               type="button"
               onClick={toggleTheme}
@@ -199,7 +181,6 @@ export const Navigation = () => {
               )}
             </button>
           </div>
-
         </div>
       </div>
     </nav>
