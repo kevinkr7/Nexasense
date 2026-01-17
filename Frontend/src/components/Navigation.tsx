@@ -191,17 +191,21 @@ export const Navigation = () => {
                       </div>
                       <div className="border-t border-border/70 py-2 text-sm text-foreground">
                         {[
-                          "Notes uploaded",
-                          "Progress",
-                          "Rewards",
-                          "Settings",
+                          { label: "Notes uploaded", path: "/notes" },
+                          { label: "Progress", path: "/progress" },
+                          { label: "Rewards", path: "/rewards" },
+                          { label: "Settings", path: "/settings" },
                         ].map((item) => (
                           <button
-                            key={item}
+                            key={item.label}
                             type="button"
+                            onClick={() => {
+                              setIsProfileOpen(false);
+                              navigate(item.path);
+                            }}
                             className="flex w-full items-center px-4 py-2 text-left hover:bg-muted"
                           >
-                            {item}
+                            {item.label}
                           </button>
                         ))}
                         <button

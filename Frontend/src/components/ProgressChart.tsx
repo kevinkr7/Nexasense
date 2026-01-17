@@ -7,29 +7,37 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-const data = [
-  { day: "Mon", progress: 10 },
-  { day: "Tue", progress: 20 },
-  { day: "Wed", progress: 35 },
-  { day: "Thu", progress: 45 },
-  { day: "Fri", progress: 60 },
-];
+type ProgressPoint = {
+  label: string;
+  value: number;
+};
 
-const ProgressChart = () => {
+type ProgressChartProps = {
+  data: ProgressPoint[];
+  title?: string;
+  valueLabel?: string;
+};
+
+const ProgressChart = ({
+  data,
+  title = "Learning Progress",
+  valueLabel = "Progress",
+}: ProgressChartProps) => {
   return (
     <div className="bg-card p-6 rounded-xl shadow">
-      <h2 className="text-lg font-semibold mb-4">Learning Progress</h2>
+      <h2 className="text-lg font-semibold mb-4">{title}</h2>
 
       <ResponsiveContainer width="100%" height={250}>
         <LineChart data={data}>
-          <XAxis dataKey="day" />
+          <XAxis dataKey="label" />
           <YAxis />
           <Tooltip />
           <Line
             type="monotone"
-            dataKey="progress"
+            dataKey="value"
             stroke="hsl(var(--primary))"
             strokeWidth={3}
+            name={valueLabel}
           />
         </LineChart>
       </ResponsiveContainer>

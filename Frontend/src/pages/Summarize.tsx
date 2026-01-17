@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import {
   addDoc,
+  arrayUnion,
   collection,
   doc,
   increment,
@@ -10,6 +11,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
+import { BookOpen, ExternalLink, PlayCircle, Wrench } from "lucide-react";
 
 type MindmapNode = {
   id: string;
@@ -64,6 +66,21 @@ type SlideItem = {
   title: string;
   description?: string;
   content: JSX.Element;
+};
+
+type ResourceCategory = "video" | "reading" | "practical";
+
+type ResourceItem = {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
+  duration?: string;
+  category: ResourceCategory;
+  tag?: string;
+  badge?: string;
 };
 
 const buildBulletPoints = (summary: string) => {
@@ -187,6 +204,158 @@ const normalizeEntities = (entities?: NamedEntities) => {
   };
 };
 
+const buildSearchUrl = (baseUrl: string, query: string) =>
+  `${baseUrl}${encodeURIComponent(query)}`;
+
+const createVideoRecommendations = (
+  topic: string,
+  concepts: string[]
+): ResourceItem[] => {
+  const sanitizedTopic = topic || "Study topic";
+  const videoTemplates = [
+    {
+      query: `${sanitizedTopic} explained`,
+      difficulty: "Beginner" as const,
+      duration: "6-12 min",
+    },
+    {
+      query: `${sanitizedTopic} for beginners`,
+      difficulty: "Beginner" as const,
+      duration: "8-15 min",
+    },
+    {
+      query: `${sanitizedTopic} animation`,
+      difficulty: "Intermediate" as const,
+      duration: "6-10 min",
+    },
+  ];
+
+  const conceptTemplates = concepts.slice(0, 2).map((concept, index) => ({
+    query:
+      index === 0
+        ? `${concept} detailed explanation`
+        : `${concept} walkthrough`,
+    difficulty: index === 0 ? ("Intermediate" as const) : ("Advanced" as const),
+    duration: index === 0 ? "10-18 min" : "12-20 min",
+  }));
+
+  const recommendations = [...videoTemplates, ...conceptTemplates]
+    .slice(0, 5)
+    .map((entry, index) => ({
+      id: `video-${index}-${entry.query.toLowerCase().replace(/\s+/g, "-")}`,
+      title: entry.query,
+      description:
+        "Curated YouTube search focused on clear, instructor-led explanations.",
+      url: buildSearchUrl(
+        "https://www.youtube.com/results?search_query=",
+        entry.query
+      ),
+      source: "YouTube • Suggested channels: Khan Academy, CrashCourse, MIT OCW",
+      difficulty: entry.difficulty,
+      duration: entry.duration,
+      category: "video" as const,
+      tag: "Video explanation",
+    }));
+
+  return recommendations;
+};
+
+const createReadingRecommendations = (
+  topic: string,
+  concepts: string[]
+): ResourceItem[] => {
+  const primaryTopic = topic || concepts[0] || "Study topic";
+  const readingSources = [
+    {
+      source: "Britannica",
+      description: "Authoritative overview with academic definitions.",
+      url: buildSearchUrl("https://www.britannica.com/search?query=", primaryTopic),
+    },
+    {
+      source: "Wikipedia",
+      description: "Broad overview and references for deeper reading.",
+      url: buildSearchUrl("https://en.wikipedia.org/wiki/Special:Search?search=", primaryTopic),
+    },
+    {
+      source: "Stanford Encyclopedia of Philosophy",
+      description: "Scholarly essays and expert-authored context.",
+      url: buildSearchUrl(
+        "https://plato.stanford.edu/search/searcher.py?query=",
+        primaryTopic
+      ),
+    },
+    {
+      source: "MIT OpenCourseWare",
+      description: "Lecture notes and academic course materials.",
+      url: buildSearchUrl("https://ocw.mit.edu/search/?q=", primaryTopic),
+    },
+  ];
+
+  return readingSources.slice(0, 4).map((entry, index) => ({
+    id: `reading-${index}-${entry.source.toLowerCase().replace(/\s+/g, "-")}`,
+    title: `${entry.source} overview`,
+    description: entry.description,
+    url: entry.url,
+    source: entry.source,
+    difficulty: "Intermediate",
+    category: "reading" as const,
+    tag: "Authoritative reading",
+  }));
+};
+
+const createPracticalRecommendations = (
+  topic: string,
+  concepts: string[]
+): ResourceItem[] => {
+  const primaryConcept = concepts[0] || topic || "Study topic";
+  const practicalSources = [
+    {
+      source: "GeeksforGeeks",
+      description: "Worked examples and coding-focused explanations.",
+      url: buildSearchUrl("https://www.geeksforgeeks.org/?s=", primaryConcept),
+    },
+    {
+      source: "TutorialsPoint",
+      description: "Step-by-step tutorials and quick reference guides.",
+      url: buildSearchUrl("https://www.tutorialspoint.com/search?search=", primaryConcept),
+    },
+    {
+      source: "MIT OpenCourseWare — Assignments",
+      description: "Practice sets and problem-focused learning.",
+      url: buildSearchUrl("https://ocw.mit.edu/search/?q=", `${primaryConcept} problem set`),
+    },
+    {
+      source: "Wolfram MathWorld",
+      description: "Worked problems and applied mathematics context.",
+      url: buildSearchUrl("https://mathworld.wolfram.com/search/?query=", primaryConcept),
+    },
+  ];
+
+  return practicalSources.slice(0, 4).map((entry, index) => ({
+    id: `practical-${index}-${entry.source.toLowerCase().replace(/\s+/g, "-")}`,
+    title: `${primaryConcept} practice on ${entry.source}`,
+    description: entry.description,
+    url: entry.url,
+    source: entry.source,
+    difficulty: "Intermediate",
+    category: "practical" as const,
+    badge: "Practice-focused",
+    tag: primaryConcept,
+  }));
+};
+
+const uniqueStrings = (values: string[]) => {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) {
+      return false;
+    }
+    seen.add(normalized);
+    return true;
+  });
+};
+
 const Summarize = () => {
   const { userId } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -215,6 +384,9 @@ const Summarize = () => {
     "upload"
   );
   const [processingStep, setProcessingStep] = useState(0);
+  const [expandedResourceId, setExpandedResourceId] = useState<string | null>(
+    null
+  );
 
   const bulletPoints = useMemo(() => buildBulletPoints(summary), [summary]);
   const evidenceMap = useMemo(() => buildEvidenceMap(mindmap ?? undefined), [
@@ -237,6 +409,19 @@ const Summarize = () => {
         label: node.label,
       }));
   }, [mindmap]);
+
+  const resourceRecommendations = useMemo(() => {
+    const topic = mostRelevantWord || summary.split(" ").slice(0, 4).join(" ");
+    const concepts = uniqueStrings(conceptNodes.map((node) => node.label)).slice(
+      0,
+      5
+    );
+    return {
+      videos: createVideoRecommendations(topic, concepts),
+      readings: createReadingRecommendations(topic, concepts),
+      practical: createPracticalRecommendations(topic, concepts),
+    };
+  }, [mostRelevantWord, conceptNodes, summary]);
 
   const handleConceptClick = (concept: string) => {
     setActiveConcept(concept);
@@ -316,6 +501,8 @@ const Summarize = () => {
       await addDoc(collection(db, "users", userId, "notes"), {
         fileName: data.note?.fileName || selectedFile.name,
         fileType: data.note?.fileType || selectedFile.type,
+        mostRelevantTopic:
+          data.note?.mostRelevantTopic || data.mostRelevantWord || "",
         summary: data.summary ?? "",
         createdAt: serverTimestamp(),
         status: data.note?.status ?? "Processed",
@@ -342,6 +529,116 @@ const Summarize = () => {
       setIsUploading(false);
       window.clearInterval(processingTimer);
     }
+  };
+
+  const handleResourceClick = async (resource: ResourceItem) => {
+    if (!userId) {
+      return;
+    }
+    try {
+      await setDoc(
+        doc(db, "users", userId, "progress", "resourcesViewed"),
+        {
+          items: arrayUnion({
+            id: resource.id,
+            title: resource.title,
+            source: resource.source,
+            url: resource.url,
+            category: resource.category,
+            clickedAt: serverTimestamp(),
+          }),
+        },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error("Failed to track resource view", error);
+    }
+  };
+
+  const renderResourceCard = (
+    resource: ResourceItem,
+    icon: JSX.Element,
+    showThumbnail = false
+  ) => {
+    const isExpanded = expandedResourceId === resource.id;
+    return (
+      <div
+        key={resource.id}
+        className="group rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            {showThumbnail ? (
+              <div className="flex h-16 w-24 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent text-primary">
+                <PlayCircle className="h-6 w-6" />
+              </div>
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60 text-primary">
+                {icon}
+              </div>
+            )}
+            <div>
+              <p className="text-sm font-semibold text-foreground">
+                {resource.title}
+              </p>
+              <p className="text-xs text-muted-foreground">{resource.source}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
+                  {resource.difficulty}
+                </span>
+                {resource.duration && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                    {resource.duration}
+                  </span>
+                )}
+                {resource.badge && (
+                  <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-600">
+                    {resource.badge}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setExpandedResourceId((prev) =>
+                prev === resource.id ? null : resource.id
+              )
+            }
+            className="text-xs font-semibold text-primary hover:underline"
+            aria-expanded={isExpanded}
+          >
+            {isExpanded ? "Hide" : "Details"}
+          </button>
+        </div>
+        {isExpanded && (
+          <div className="mt-3 space-y-3 text-xs text-muted-foreground">
+            <p>{resource.description}</p>
+            {resource.tag && (
+              <span className="inline-flex rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                {resource.tag}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+          <span className="uppercase tracking-wide">
+            {resource.category}
+          </span>
+          <a
+            href={resource.url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => handleResourceClick(resource)}
+            className="inline-flex items-center gap-1 rounded-full border border-border/70 px-3 py-1 text-xs font-semibold text-foreground transition hover:border-primary/60 hover:text-primary"
+          >
+            Open
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+    );
   };
 
   const slides: SlideItem[] = [
@@ -682,6 +979,72 @@ const Summarize = () => {
           ) : (
             <p className="mt-2">Upload a document to generate a concept map.</p>
           )}
+        </div>
+      ),
+    },
+    {
+      id: "resources",
+      title: "Recommended learning resources",
+      description:
+        "Curated next steps based on your topic and key concepts.",
+      content: (
+        <div className="mt-6 space-y-6">
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <PlayCircle className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold text-foreground">
+                  🎥 Video Explanations
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Curated playlist-style searches
+              </span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {resourceRecommendations.videos.map((resource) =>
+                renderResourceCard(resource, <PlayCircle className="h-5 w-5" />, true)
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold text-foreground">
+                  📘 Authoritative Reading
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Trusted academic sources
+              </span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {resourceRecommendations.readings.map((resource) =>
+                renderResourceCard(resource, <BookOpen className="h-5 w-5" />)
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-primary" />
+                <h3 className="text-base font-semibold text-foreground">
+                  💻 Practical / Applied Learning
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Practice-focused resources
+              </span>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              {resourceRecommendations.practical.map((resource) =>
+                renderResourceCard(resource, <Wrench className="h-5 w-5" />)
+              )}
+            </div>
+          </section>
         </div>
       ),
     },

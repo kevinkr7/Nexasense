@@ -1,31 +1,37 @@
-const notes = [
-  {
-    id: 1,
-    title: "Binary Trees",
-    subject: "Data Structures",
-    date: "Jan 3, 2026",
-  },
-  {
-    id: 2,
-    title: "Operating System Basics",
-    subject: "OS",
-    date: "Jan 2, 2026",
-  },
-  {
-    id: 3,
-    title: "DBMS Normalization",
-    subject: "Database",
-    date: "Jan 1, 2026",
-  },
-];
+import { useNavigate } from "react-router-dom";
 
-const NotesList = () => {
+type NotePreview = {
+  id: string;
+  title: string;
+  topic: string;
+  createdAt: Date | null;
+};
+
+type NotesListProps = {
+  notes: NotePreview[];
+};
+
+const NotesList = ({ notes }: NotesListProps) => {
+  const navigate = useNavigate();
+
+  const formatDate = (date: Date | null) => {
+    if (!date) {
+      return "No date recorded";
+    }
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="mt-10">
       <h2 className="text-2xl font-bold mb-4">Your Notes</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {notes.map((note) => (
+      {notes.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/60 p-6 text-sm text-muted-foreground">
+          No notes yet. Upload a file to see summaries here.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {notes.map((note) => (
           <div
             key={note.id}
             className="bg-card p-6 rounded-xl shadow hover:shadow-md transition"
@@ -35,19 +41,24 @@ const NotesList = () => {
             </h3>
 
             <p className="text-sm text-muted-foreground">
-              {note.subject}
+              {note.topic}
             </p>
 
             <p className="text-xs text-muted-foreground mt-2">
-              {note.date}
+              {formatDate(note.createdAt)}
             </p>
 
-            <button className="mt-4 text-primary text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => navigate(`/notes/${note.id}`)}
+              className="mt-4 text-primary text-sm font-medium"
+            >
               View Notes →
             </button>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
