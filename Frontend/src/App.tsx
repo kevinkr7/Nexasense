@@ -12,6 +12,10 @@ import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
 import NoteViewer from "./pages/NoteViewer";
 import Summarize from "./pages/Summarize";
+import Notes from "./pages/Notes";
+import Progress from "./pages/Progress";
+import Rewards from "./pages/Rewards";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -56,6 +60,41 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <NoteViewer />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notes"
+              element={
+                <ProtectedRoute>
+                  <Notes />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/progress"
+              element={
+                <ProtectedRoute>
+                  <Progress />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/rewards"
+              element={
+                <ProtectedRoute>
+                  <Rewards />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />

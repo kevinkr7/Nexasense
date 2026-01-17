@@ -316,6 +316,8 @@ const Summarize = () => {
       await addDoc(collection(db, "users", userId, "notes"), {
         fileName: data.note?.fileName || selectedFile.name,
         fileType: data.note?.fileType || selectedFile.type,
+        mostRelevantTopic:
+          data.note?.mostRelevantTopic || data.mostRelevantWord || "",
         summary: data.summary ?? "",
         createdAt: serverTimestamp(),
         status: data.note?.status ?? "Processed",
