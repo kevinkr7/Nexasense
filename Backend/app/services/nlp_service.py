@@ -2,6 +2,7 @@ import re
 import unicodedata
 from collections import Counter
 from typing import Iterable, List, Tuple
+import os
 
 from transformers import pipeline
 
@@ -38,27 +39,23 @@ def _get_ner_pipeline():
 
 
 def _load_word_dictionary() -> set:
-    # Local dictionary improves safe OCR repair without any external dependencies.
-    candidate_paths = ["/usr/share/dict/words", "/usr/dict/words"]
-    for path in candidate_paths:
-        try:
-            with open(path, "r", encoding="utf-8") as handle:
-                words = {line.strip().lower() for line in handle if line.strip()}
-                return {word for word in words if len(word) >= 3 and word.isalpha()}
-        except FileNotFoundError:
-            continue
-        except OSError:
-            continue
-    # Minimal fallback keeps repairs conservative when no system dictionary exists.
-    return {
-        "academic", "analysis", "approach", "baseline", "capacity", "central",
-        "complex", "concept", "context", "critical", "dataset", "define",
-        "derive", "design", "dynamic", "effect", "evidence", "example",
-        "experiment", "feature", "framework", "function", "general",
-        "generation", "important", "include", "information", "interpret",
-        "learn", "method", "model", "process", "result", "sample",
-        "significant", "structure", "system", "theory", "value"
-    }
+    repo_root = os.path.dirname(os.path.dirname(__file__))
+    wordlist_path = os.path.join(repo_root, "resources", "wordlist.txt")
+
+    try:
+        with open(wordlist_path, "r", encoding="utf-8") as handle:
+            words = {
+                line.strip().lower()
+                for line in handle
+                if line.strip().isalpha() and len(line.strip()) >= 3
+            }
+            return words
+    except OSError:
+        # Absolute last-resort fallback
+        return {
+            "larval", "digest", "pollen",
+            "nectar", "honeydew", "enzyme", "storage", "energy"
+        }
 
 
 def _get_word_dictionary() -> set:
@@ -193,14 +190,14 @@ def lexical_repair(text: str) -> str:
         if lower in dictionary or local_counts[lower] > 1:
             return original
 
+        candidate = replacement_candidate(lower)
+        if candidate:
+            return _match_case(original, candidate)
+        
         split = split_candidate(lower)
         if split:
             parts = split.split()
             return " ".join(_match_case(original, part) for part in parts)
-
-        candidate = replacement_candidate(lower)
-        if candidate:
-            return _match_case(original, candidate)
 
         return original
 
