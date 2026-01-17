@@ -2,9 +2,11 @@ import { Button } from "@/components/ui/button";
 import heroIllustration from "@/assets/hero-illustration.jpg";
 import { PlayCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 export const Hero = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-br from-background via-nexasense-light to-background">
@@ -35,10 +37,12 @@ export const Hero = () => {
                 variant="hero"
                 size="lg"
                 className="text-lg px-8 py-4 h-14"
-                onClick={() => navigate("/login")}
+                onClick={() =>
+                  navigate(isAuthenticated ? "/summarize" : "/login")
+                }
               >
                 <PlayCircle className="w-5 h-5" />
-                Start Learning
+                {isAuthenticated ? "Summarize Notes" : "Start Learning"}
               </Button>
             </div>
 
