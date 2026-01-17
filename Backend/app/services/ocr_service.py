@@ -1,5 +1,6 @@
 import cv2
 import pytesseract
+from pytesseract import Output
 import re
 import os
 import shutil
@@ -60,6 +61,9 @@ def extract_text_from_image(image_path: str) -> str:
     # PSM 11 → Sparse text (best for handwritten notes)
     custom_config = r"--oem 3 --psm 11"
 
+    if not image_contains_text(processed_image, custom_config):
+        raise ValueError("No readable text detected in the uploaded image.")
+
     text = pytesseract.image_to_string(
         processed_image,
         lang="eng",
@@ -67,6 +71,32 @@ def extract_text_from_image(image_path: str) -> str:
     )
 
     return clean_text(text)
+
+
+def image_contains_text(processed_image, custom_config: str) -> bool:
+    data = pytesseract.image_to_data(
+        processed_image,
+        lang="eng",
+        config=custom_config,
+        output_type=Output.DICT
+    )
+
+    texts = data.get("text", [])
+    confs = data.get("conf", [])
+
+    valid_words = 0
+    for word, conf in zip(texts, confs):
+        word = word.strip()
+        if not word or len(word) < 2:
+            continue
+        try:
+            conf_value = float(conf)
+        except ValueError:
+            continue
+        if conf_value >= 45:
+            valid_words += 1
+
+    return valid_words >= 2
 
 
 def clean_text(text: str) -> str:

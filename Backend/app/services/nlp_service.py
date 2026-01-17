@@ -62,29 +62,49 @@ def simplify_text(text: str) -> str:
 
     return result[0]["generated_text"]
 
-def extract_key_concepts(text: str, limit: int = 8):
-    words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
+def _get_candidate_words(text: str):
+    words = re.findall(r"\b[a-zA-Z]{4,}\b", text.lower())
 
     stopwords = {
         "which", "their", "there", "these", "those", "where",
         "about", "would", "could", "should", "through",
-        "support", "general", "activity"
+        "support", "general", "activity", "because", "between",
+        "within", "without", "while", "after", "before"
     }
 
     banned_suffixes = ("ed", "ing", "ive", "al", "ic", "ly")
 
     filtered = []
-    for w in words:
-        if w in stopwords:
+    for word in words:
+        if word in stopwords:
             continue
-        if w.endswith(banned_suffixes):
+        if word.endswith(banned_suffixes):
             continue
-        if not w.isalpha():
+        if not word.isalpha():
             continue
-        filtered.append(w)
+        filtered.append(word)
 
+    return filtered
+
+
+def extract_key_concepts(text: str, limit: int = 8):
+    filtered = _get_candidate_words(text)
     common = Counter(filtered).most_common(limit)
     return [word for word, _ in common]
+
+
+def find_most_relevant_word(text: str) -> str:
+    filtered = _get_candidate_words(text)
+    if not filtered:
+        return ""
+
+    counts = Counter(filtered)
+    scored = [
+        (word, counts[word] * (1 + (len(word) / 8)))
+        for word in counts
+    ]
+    scored.sort(key=lambda item: (item[1], len(item[0])), reverse=True)
+    return scored[0][0]
 
 
 
