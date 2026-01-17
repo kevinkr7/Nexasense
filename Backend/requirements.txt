@@ -12,5 +12,6 @@ numpy
 transformers
 torch
 sentencepiece
+pdfplumber
 
 

@@ -3,7 +3,7 @@ import shutil
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from app.core.auth import verify_firebase_token
 from app.services.note_service import create_note, get_notes_by_user
-from app.services.ocr_service import extract_text_from_image
+from app.services.ocr_service import extract_text
 from app.services.nlp_service import summarize_text
 from app.services.nlp_service import simplify_text
 from app.services.nlp_service import build_mindmap
@@ -34,7 +34,7 @@ def upload_note(
 
     # 2️⃣ OCR — extract text from saved image
     try:
-        extracted_text = extract_text_from_image(file_path)
+        extracted_text = extract_text(file_path, file.content_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

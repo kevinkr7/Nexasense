@@ -120,3 +120,23 @@ def clean_text(text: str) -> str:
     text = re.sub(r"[^\x00-\x7F]+", " ", text)
 
     return text.strip()
+
+def extract_text(file_path: str, file_type: str) -> str:
+    file_type = file_type.lower()
+
+    if file_type.startswith("image/"):
+        return extract_text_from_image(file_path)
+
+    if file_type == "application/pdf":
+        from app.services.pdf_service import extract_text_from_pdf
+        return extract_text_from_pdf(file_path)
+
+    if file_type in (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword"
+    ):
+        from app.services.docx_service import extract_text_from_docx
+        return extract_text_from_docx(file_path)
+
+    raise ValueError("Unsupported file format")
+
