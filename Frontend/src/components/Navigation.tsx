@@ -56,7 +56,16 @@ export const Navigation = () => {
   }, [isProfileOpen]);
 
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    // Check if browser supports View Transitions
+    if (!document.startViewTransition) {
+      setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+      return;
+    }
+
+    // This triggers the browser's native cross-fade animation
+    document.startViewTransition(() => {
+      setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    });
   };
 
   const showBackToHome = isLoggedIn && !isHome;

@@ -192,3 +192,9 @@
     box-shadow: var(--shadow-glow);
   }
 }
+
+/* Control the speed of the fade */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.5s; /* Makes the fade slower/smoother */
+}

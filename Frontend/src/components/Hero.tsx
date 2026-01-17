@@ -38,7 +38,7 @@ export const Hero = () => {
                 onClick={() => navigate("/login")}
               >
                 <PlayCircle className="w-5 h-5" />
-                Try Demo
+                Start Learning
               </Button>
             </div>
 
