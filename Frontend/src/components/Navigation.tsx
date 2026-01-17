@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 export const Navigation = () => {
   const navigate = useNavigate();
@@ -12,8 +13,9 @@ export const Navigation = () => {
   const isLogin = location.pathname === "/login";
   const isHome = location.pathname === "/";
 
-  // Auth check
-  const isLoggedIn = !!localStorage.getItem("nexasense_token");
+  const { isAuthenticated, userDisplayName, userEmail, userPhotoURL } =
+    useAuth();
+  const isLoggedIn = isAuthenticated;
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
@@ -74,7 +76,8 @@ export const Navigation = () => {
     try {
       await signOut(auth);
       localStorage.removeItem("nexasense_token");
-      window.location.href = "/";
+      setIsProfileOpen(false);
+      navigate("/");
     } catch (err) {
       console.error("Logout failed", err);
     }
@@ -150,23 +153,61 @@ export const Navigation = () => {
                   </button>
 
                   {isProfileOpen && (
-                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-border bg-background shadow-lg">
-                      <div className="flex flex-col py-2 text-sm text-foreground">
-                        {["Notes uploaded", "Settings", "Progress", "Rewards"].map(
-                          (item) => (
-                            <button
-                              key={item}
-                              type="button"
-                              className="px-4 py-2 text-left hover:bg-muted"
-                            >
-                              {item}
-                            </button>
-                          )
-                        )}
+                    <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-border bg-background shadow-lg">
+                      <div className="flex gap-4 px-4 pb-4 pt-4">
+                        <div className="flex flex-col items-start gap-2">
+                          <div className="h-16 w-16 overflow-hidden rounded-full bg-muted">
+                            {userPhotoURL ? (
+                              <img
+                                src={userPhotoURL}
+                                alt="Profile"
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                                <User className="h-6 w-6" />
+                              </div>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsProfileOpen(false);
+                              navigate("/profile");
+                            }}
+                            className="text-xs font-semibold text-primary hover:underline"
+                          >
+                            View Profile
+                          </button>
+                        </div>
+                        <div className="flex flex-1 flex-col justify-center">
+                          <p className="text-sm font-semibold text-foreground">
+                            {userDisplayName || "Your account"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {userEmail || "Signed in"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="border-t border-border/70 py-2 text-sm text-foreground">
+                        {[
+                          "Notes uploaded",
+                          "Progress",
+                          "Rewards",
+                          "Settings",
+                        ].map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            className="flex w-full items-center px-4 py-2 text-left hover:bg-muted"
+                          >
+                            {item}
+                          </button>
+                        ))}
                         <button
                           type="button"
                           onClick={handleLogout}
-                          className="px-4 py-2 text-left text-destructive hover:bg-muted"
+                          className="flex w-full items-center px-4 py-2 text-left text-destructive hover:bg-muted"
                         >
                           Logout
                         </button>

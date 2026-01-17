@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "../firebase";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db } from "../firebase";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -33,6 +34,19 @@ const Register = () => {
           displayName: displayUsername || name,
         });
       }
+
+      await setDoc(
+        doc(db, "users", userCredential.user.uid, "profile", "info"),
+        {
+          displayName: displayUsername || name,
+          email,
+          dateOfBirth,
+          bio: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
 
       const token = await userCredential.user.getIdToken();
       localStorage.setItem("nexasense_token", token);

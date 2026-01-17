@@ -56,8 +56,8 @@ const Login = () => {
       // 🧪 Optional API test
       await callProtectedAPI();
 
-      // 🚀 REDIRECT TO SUMMARIZE
-      navigate("/summarize");
+      // 🚀 REDIRECT TO HOME
+      navigate("/");
     } catch (err: any) {
       setError("Invalid email or password");
     }
@@ -71,7 +71,7 @@ const Login = () => {
       const firebaseUser = userCredential.user;
       const token = await firebaseUser.getIdToken();
       localStorage.setItem("nexasense_token", token);
-      navigate("/summarize");
+      navigate("/");
     } catch (err: any) {
       setError("Google sign-in failed");
     }

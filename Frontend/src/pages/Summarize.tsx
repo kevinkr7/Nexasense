@@ -1,5 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import { Navigation } from "@/components/Navigation";
+import {
+  addDoc,
+  collection,
+  doc,
+  increment,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+import { db } from "@/firebase";
+import { useAuth } from "@/context/AuthContext";
 
 type MindmapNode = {
   id: string;
@@ -178,6 +188,7 @@ const normalizeEntities = (entities?: NamedEntities) => {
 };
 
 const Summarize = () => {
+  const { userId } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [summary, setSummary] = useState("");
   const [simplified, setSimplified] = useState("");
@@ -257,7 +268,7 @@ const Summarize = () => {
     }
 
     const token = localStorage.getItem("nexasense_token");
-    if (!token) {
+    if (!token || !userId) {
       setError("Please log in again to upload your file.");
       return;
     }
@@ -301,6 +312,24 @@ const Summarize = () => {
       setActiveConcept("");
       setActiveSlideIndex(2);
       setViewState("results");
+
+      await addDoc(collection(db, "users", userId, "notes"), {
+        fileName: data.note?.fileName || selectedFile.name,
+        fileType: data.note?.fileType || selectedFile.type,
+        summary: data.summary ?? "",
+        createdAt: serverTimestamp(),
+        status: data.note?.status ?? "Processed",
+      });
+
+      await setDoc(
+        doc(db, "users", userId, "progress", "stats"),
+        {
+          notesUploaded: increment(1),
+          totalSummaries: increment(1),
+          lastActivity: serverTimestamp(),
+        },
+        { merge: true }
+      );
     } catch (uploadError) {
       console.error(uploadError);
       const message =
