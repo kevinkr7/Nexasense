@@ -27,6 +27,7 @@ def _load_ner_pipeline():
 
 
 _NER_PIPELINE = None
+_WORD_DICTIONARY = None
 
 
 def _get_ner_pipeline():
@@ -34,6 +35,37 @@ def _get_ner_pipeline():
     if _NER_PIPELINE is None:
         _NER_PIPELINE = _load_ner_pipeline()
     return _NER_PIPELINE
+
+
+def _load_word_dictionary() -> set:
+    # Local dictionary improves safe OCR repair without any external dependencies.
+    candidate_paths = ["/usr/share/dict/words", "/usr/dict/words"]
+    for path in candidate_paths:
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                words = {line.strip().lower() for line in handle if line.strip()}
+                return {word for word in words if len(word) >= 3 and word.isalpha()}
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+    # Minimal fallback keeps repairs conservative when no system dictionary exists.
+    return {
+        "academic", "analysis", "approach", "baseline", "capacity", "central",
+        "complex", "concept", "context", "critical", "dataset", "define",
+        "derive", "design", "dynamic", "effect", "evidence", "example",
+        "experiment", "feature", "framework", "function", "general",
+        "generation", "important", "include", "information", "interpret",
+        "learn", "method", "model", "process", "result", "sample",
+        "significant", "structure", "system", "theory", "value"
+    }
+
+
+def _get_word_dictionary() -> set:
+    global _WORD_DICTIONARY
+    if _WORD_DICTIONARY is None:
+        _WORD_DICTIONARY = _load_word_dictionary()
+    return _WORD_DICTIONARY
 
 
 def sanitize_text(text: str) -> str:
@@ -73,11 +105,113 @@ def _is_abbreviation(token: str) -> bool:
     ))
 
 
-def reconstruct_sentences(text: str) -> List[str]:
+def _match_case(source: str, candidate: str) -> str:
+    if source.isupper():
+        return candidate.upper()
+    if source.istitle():
+        return candidate.capitalize()
+    return candidate
+
+
+def _has_technical_shape(token: str) -> bool:
+    # Avoid mutating tokens that look technical or formatted identifiers.
+    return bool(
+        re.search(r"\d", token)
+        or re.search(r"[A-Z].*[A-Z]", token)
+        or re.search(r"[+/_\\-]", token)
+    )
+
+
+def lexical_repair(text: str) -> str:
+    """
+    Fix high-confidence OCR typos using conservative, dictionary-backed heuristics.
+    """
+    if not text:
+        return ""
+
+    dictionary = _get_word_dictionary()
+    tokens = re.findall(r"\b[a-zA-Z]{3,}\b", text)
+    local_counts = Counter(token.lower() for token in tokens)
+
+    confusion_pairs = [
+        ("rn", "m"),
+        ("m", "rn"),
+        ("cl", "d"),
+        ("d", "cl"),
+        ("0", "o"),
+        ("1", "l"),
+        ("5", "s"),
+        ("l", "i"),
+        ("i", "l"),
+        ("v", "u"),
+        ("u", "v"),
+        ("f", "t"),
+        ("t", "f"),
+    ]
+
+    suffix_fixes = {
+        "onc": "olic",
+        "ual": "val",
+        "rnal": "rmal",
+    }
+
+    def split_candidate(token: str) -> str:
+        if len(token) < 8:
+            return ""
+        for idx in range(3, len(token) - 2):
+            left = token[:idx]
+            right = token[idx:]
+            if (
+                (left in dictionary or local_counts[left] > 1)
+                and (right in dictionary or local_counts[right] > 1)
+            ):
+                return f"{left} {right}"
+        return ""
+
+    def replacement_candidate(token: str) -> str:
+        for wrong, right in confusion_pairs:
+            if wrong in token:
+                candidate = token.replace(wrong, right, 1)
+                if candidate in dictionary:
+                    return candidate
+        for wrong, right in suffix_fixes.items():
+            if token.endswith(wrong):
+                candidate = token[: -len(wrong)] + right
+                if candidate in dictionary:
+                    return candidate
+        for idx in range(len(token)):
+            candidate = token[:idx] + token[idx + 1:]
+            if len(candidate) >= 3 and candidate in dictionary:
+                return candidate
+        return ""
+
+    def repair_token(match: re.Match) -> str:
+        original = match.group(0)
+        if _has_technical_shape(original):
+            return original
+        lower = original.lower()
+        if lower in dictionary or local_counts[lower] > 1:
+            return original
+
+        split = split_candidate(lower)
+        if split:
+            parts = split.split()
+            return " ".join(_match_case(original, part) for part in parts)
+
+        candidate = replacement_candidate(lower)
+        if candidate:
+            return _match_case(original, candidate)
+
+        return original
+
+    return re.sub(r"\b[a-zA-Z]{3,}\b", repair_token, text)
+
+
+def reconstruct_sentences(text: str, sanitized: bool = False) -> List[str]:
     """
     Rebuild sentences from noisy line-broken OCR/PDF text.
     """
-    cleaned = sanitize_text(text)
+    cleaned = text if sanitized else sanitize_text(text)
     if not cleaned:
         return []
 
@@ -188,6 +322,38 @@ def _summarize_chunk(chunk: str) -> str:
     return result[0]["summary_text"].strip()
 
 
+def _expand_summary_if_thin(summary: str, sentences: List[str], min_concepts: int = 3) -> str:
+    """
+    Add a small amount of source context when summaries are too concept-light.
+    """
+    if not summary or not sentences:
+        return summary
+
+    concepts = extract_key_concepts(summary, limit=8)
+    if len(concepts) >= min_concepts:
+        return summary
+
+    source_concepts = extract_key_concepts(" ".join(sentences), limit=10)
+    if not source_concepts:
+        return summary
+
+    summary_lower = summary.lower()
+    candidates = []
+    for sentence in sentences:
+        if sentence.lower() in summary_lower:
+            continue
+        score = sum(1 for concept in source_concepts if concept.lower() in sentence.lower())
+        if score:
+            candidates.append((score, sentence))
+
+    if not candidates:
+        return summary
+
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    additions = [sentence for _, sentence in candidates[:2]]
+    return f"{summary} {' '.join(additions)}".strip()
+
+
 def summarize_text(text: str) -> str:
     """
     Generate an academic-style summary from sanitized, reconstructed text.
@@ -195,7 +361,9 @@ def summarize_text(text: str) -> str:
     if not text or len(text.strip()) < 50:
         return "Text too short for summarization."
 
-    sentences = reconstruct_sentences(text)
+    sanitized = sanitize_text(text)
+    repaired = lexical_repair(sanitized)
+    sentences = reconstruct_sentences(repaired, sanitized=True)
     if not sentences:
         return "Text too short for summarization."
 
@@ -207,7 +375,53 @@ def summarize_text(text: str) -> str:
         # Light second-pass summarization stabilizes multi-chunk outputs.
         merged = _summarize_chunk(merged)
 
-    return merged
+    return _expand_summary_if_thin(merged, sentences)
+
+
+def summary_to_points(summary: str) -> List[str]:
+    """
+    Convert summary prose into clean, de-duplicated study points.
+    """
+    cleaned = sanitize_text(summary)
+    if not cleaned:
+        return []
+
+    sentences = reconstruct_sentences(cleaned, sanitized=True)
+    if not sentences:
+        return []
+
+    points: List[str] = []
+    buffer = ""
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+        if buffer:
+            sentence = f"{buffer} {sentence}"
+            buffer = ""
+        if len(sentence.split()) < 6:
+            buffer = sentence
+            continue
+        points.append(sentence)
+
+    if buffer:
+        if points:
+            points[-1] = f"{points[-1]} {buffer}"
+        else:
+            points.append(buffer)
+
+    seen = set()
+    final_points = []
+    for sentence in points:
+        normalized = re.sub(r"[^a-z0-9]+", " ", sentence.lower()).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        if not re.search(r"[.!?]$", sentence):
+            sentence = f"{sentence}."
+        final_points.append(sentence)
+
+    return final_points
 
 
 def simplify_text(text: str) -> str:
@@ -322,6 +536,10 @@ def extract_key_concepts(text: str, limit: int = 8):
 
     return concepts
 
+
+def find_most_relevant_word(text: str) -> str:
+    concepts = extract_key_concepts(text, limit=1)
+    return concepts[0] if concepts else ""
 
 def find_most_relevant_word(text: str) -> str:
     concepts = extract_key_concepts(text, limit=1)
