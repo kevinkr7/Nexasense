@@ -1,12 +1,13 @@
 import os
 import shutil
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from app.core.auth import verify_firebase_token
 from app.services.note_service import create_note, get_notes_by_user
 from app.services.ocr_service import extract_text_from_image
 from app.services.nlp_service import summarize_text
 from app.services.nlp_service import simplify_text
 from app.services.nlp_service import build_mindmap
+from app.services.nlp_service import find_most_relevant_word
 from app.services.analytics_service import log_event
 from app.services.knowledge_enrichment import enrich_summary
 
@@ -32,7 +33,10 @@ def upload_note(
         shutil.copyfileobj(file.file, buffer)
 
     # 2️⃣ OCR — extract text from saved image
-    extracted_text = extract_text_from_image(file_path)
+    try:
+        extracted_text = extract_text_from_image(file_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # (TEMP) Debug / verify OCR output
     print("---- OCR OUTPUT START ----")
@@ -49,9 +53,16 @@ def upload_note(
     summary = summarize_text(extracted_text)
     simplified = simplify_text(summary)
 
+    most_relevant_word = find_most_relevant_word(extracted_text)
+    mindmap_title = (
+        most_relevant_word.capitalize()
+        if most_relevant_word
+        else "Generated Concepts"
+    )
+
     mindmap = build_mindmap(
         simplified,
-        title="Generated Concepts"
+        title=mindmap_title
     )
 
     log_event(uid, note["noteId"], "summaryViewed")
@@ -70,6 +81,7 @@ def upload_note(
         "note":note,
         "summary": summary,
         "simplified": simplified,
+        "mostRelevantWord": most_relevant_word,
         "mindmap": mindmap,
         "enriched": enriched
     }
