@@ -541,6 +541,10 @@ def find_most_relevant_word(text: str) -> str:
     concepts = extract_key_concepts(text, limit=1)
     return concepts[0] if concepts else ""
 
+def find_most_relevant_word(text: str) -> str:
+    concepts = extract_key_concepts(text, limit=1)
+    return concepts[0] if concepts else ""
+
 
 def map_concepts_to_sentences(text: str, concepts):
     sentences = reconstruct_sentences(text)
