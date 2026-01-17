@@ -3,6 +3,7 @@ import { initializeApp } from "firebase/app";
 
 // Firebase Auth
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // 🔹 Your Firebase configuration (replace values)
 const firebaseConfig = {
@@ -20,6 +21,7 @@ const app = initializeApp(firebaseConfig);
 
 // 🔹 Initialize Auth
 export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 // 🔹 Export app (optional but good practice)
 export default app;
