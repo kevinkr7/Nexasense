@@ -9,7 +9,8 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import { auth, db } from "@/firebase";
+// 1. Removed Storage imports
+import { auth, db } from "@/firebase"; 
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -82,20 +83,21 @@ const createCroppedImage = async (
     OUTPUT_SIZE,
   );
 
-  return canvas.toDataURL("image/jpeg", 0.92);
+  // Compress quality slightly to ensure it fits easily in Firestore (0.8 = 80% quality)
+  return canvas.toDataURL("image/jpeg", 0.8);
 };
 
 const Profile = () => {
   const navigate = useNavigate();
   const { user, userId, userDisplayName, userEmail, userPhotoURL } = useAuth();
+  
   const [initialProfile, setInitialProfile] = useState<ProfileSnapshot>({
     displayName: userDisplayName || "",
     bio: "",
     photoURL: userPhotoURL || "",
   });
-  const [draftDisplayName, setDraftDisplayName] = useState(
-    userDisplayName || "",
-  );
+  
+  const [draftDisplayName, setDraftDisplayName] = useState(userDisplayName || "");
   const [draftBio, setDraftBio] = useState("");
   const [draftPhotoURL, setDraftPhotoURL] = useState(userPhotoURL || "");
   const [notesUploaded, setNotesUploaded] = useState(0);
@@ -105,16 +107,16 @@ const Profile = () => {
   const [statusMessage, setStatusMessage] = useState("");
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(
-    null,
-  );
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
   const [cropPosition, setCropPosition] = useState<CropPosition>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedPreview, setCroppedPreview] = useState<string | null>(null);
+  
   const dragState = useRef<{ startX: number; startY: number } | null>(null);
   const hasPushedState = useRef(false);
 
-  const avatarSrc = draftPhotoURL || userPhotoURL || "";
+  // Priority: Draft -> Firestore Data -> Auth Data
+  const avatarSrc = draftPhotoURL || initialProfile.photoURL || userPhotoURL || "";
 
   const isDirty = useMemo(() => {
     return (
@@ -124,19 +126,15 @@ const Profile = () => {
     );
   }, [draftBio, draftDisplayName, draftPhotoURL, initialProfile]);
 
+  // Handle unsaved changes warning
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDirty) {
-        return;
-      }
+      if (!isDirty) return;
       event.preventDefault();
       event.returnValue = "";
     };
-
     window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty]);
 
   useEffect(() => {
@@ -144,36 +142,25 @@ const Profile = () => {
       window.history.pushState({ profileGuard: true }, "", window.location.href);
       hasPushedState.current = true;
     }
-    if (!isDirty) {
-      hasPushedState.current = false;
-    }
+    if (!isDirty) hasPushedState.current = false;
   }, [isDirty]);
 
   useEffect(() => {
     const handlePopState = () => {
-      if (!isDirty) {
-        return;
-      }
-      const shouldLeave = window.confirm(
-        "You have unsaved changes. Do you want to leave this page?",
-      );
-      if (!shouldLeave) {
-        window.history.pushState({ profileGuard: true }, "", window.location.href);
-      } else {
+      if (!isDirty) return;
+      if (window.confirm("You have unsaved changes. Do you want to leave this page?")) {
         hasPushedState.current = false;
+      } else {
+        window.history.pushState({ profileGuard: true }, "", window.location.href);
       }
     };
-
     window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
+    return () => window.removeEventListener("popstate", handlePopState);
   }, [isDirty]);
 
+  // Load Profile Data
   useEffect(() => {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
     const loadProfile = async () => {
       const profileRef = doc(db, "users", userId, "profile", "info");
@@ -189,33 +176,30 @@ const Profile = () => {
       if (profileSnapshot.exists()) {
         const data = profileSnapshot.data();
         const snapshot: ProfileSnapshot = {
-          displayName:
-            (data.displayName as string | undefined) || userDisplayName || "",
-          bio: (data.bio as string | undefined) || "",
-          photoURL:
-            (data.photoURL as string | undefined) || userPhotoURL || "",
+          displayName: (data.displayName as string) || userDisplayName || "",
+          bio: (data.bio as string) || "",
+          // CRITICAL: Read photoURL from Firestore first
+          photoURL: (data.photoURL as string) || userPhotoURL || "",
         };
         setInitialProfile(snapshot);
         setDraftDisplayName(snapshot.displayName);
         setDraftBio(snapshot.bio);
         setDraftPhotoURL(snapshot.photoURL);
       } else {
+        // Initialize if not exists
         const snapshot: ProfileSnapshot = {
           displayName: userDisplayName || "",
           bio: "",
           photoURL: userPhotoURL || "",
         };
-        await setDoc(
-          profileRef,
-          {
+        await setDoc(profileRef, {
             displayName: snapshot.displayName,
             email: userEmail || "",
             bio: snapshot.bio,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
+        }, { merge: true });
+        
         setInitialProfile(snapshot);
         setDraftDisplayName(snapshot.displayName);
         setDraftBio(snapshot.bio);
@@ -225,10 +209,8 @@ const Profile = () => {
       if (statsSnapshot.exists()) {
         const statsData = statsSnapshot.data();
         setTotalSummaries(Number(statsData.totalSummaries || 0));
-        const lastActivityTimestamp = statsData.lastActivity?.toDate?.();
-        setLastActivity(lastActivityTimestamp || null);
+        setLastActivity(statsData.lastActivity?.toDate?.() || null);
       }
-
       setNotesUploaded(notesCountSnapshot.data().count);
     };
 
@@ -236,31 +218,25 @@ const Profile = () => {
   }, [userId, userDisplayName, userEmail, userPhotoURL]);
 
   const accountCreatedLabel = useMemo(() => {
-    const createdAt = user?.metadata.creationTime;
-    if (!createdAt) {
-      return "Not available";
-    }
-    return new Date(createdAt).toLocaleDateString();
+    return user?.metadata.creationTime 
+      ? new Date(user.metadata.creationTime).toLocaleDateString() 
+      : "Not available";
   }, [user]);
 
+  // Image & Cropping Logic
   useEffect(() => {
     if (!selectedImage) {
       setImageSize(null);
       return;
     }
-
     const image = new Image();
     image.src = selectedImage;
-    image.onload = () => {
-      setImageSize({ width: image.width, height: image.height });
-    };
+    image.onload = () => setImageSize({ width: image.width, height: image.height });
   }, [selectedImage]);
 
   const clampCropPosition = useCallback(
     (nextCrop: CropPosition, zoomLevel: number) => {
-      if (!imageSize) {
-        return nextCrop;
-      }
+      if (!imageSize) return nextCrop;
       const displayWidth = imageSize.width * zoomLevel;
       const displayHeight = imageSize.height * zoomLevel;
       const maxOffsetX = Math.max(0, (displayWidth - CROP_SIZE) / 2);
@@ -274,9 +250,7 @@ const Profile = () => {
   );
 
   useEffect(() => {
-    if (!imageSize) {
-      return;
-    }
+    if (!imageSize) return;
     setCropPosition((current) => clampCropPosition(current, zoom));
   }, [clampCropPosition, imageSize, zoom]);
 
@@ -285,59 +259,42 @@ const Profile = () => {
       setCroppedPreview(null);
       return;
     }
-
     const generatePreview = async () => {
       try {
         const preview = await createCroppedImage(selectedImage, cropPosition, zoom);
         setCroppedPreview(preview);
       } catch (error) {
-        console.error("Failed to generate cropped preview", error);
+        console.error("Failed to generate preview", error);
       }
     };
-
     generatePreview();
   }, [cropPosition, selectedImage, zoom]);
 
-  const handleAvatarFileChange = async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleAvatarFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
+    if (!file) return;
     const reader = new FileReader();
     reader.onloadend = () => {
       const result = reader.result?.toString() ?? null;
-      if (!result) {
-        return;
+      if (result) {
+        setSelectedImage(result);
+        setZoom(1);
+        setCropPosition({ x: 0, y: 0 });
       }
-      setSelectedImage(result);
-      setZoom(1);
-      setCropPosition({ x: 0, y: 0 });
     };
     reader.readAsDataURL(file);
   };
 
-  const handleCropPointerDown = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ) => {
+  const handleCropPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     dragState.current = { startX: event.clientX, startY: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
-  const handleCropPointerMove = (
-    event: React.PointerEvent<HTMLDivElement>,
-  ) => {
-    if (!dragState.current) {
-      return;
-    }
-
+  const handleCropPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState.current) return;
     const deltaX = event.clientX - dragState.current.startX;
     const deltaY = event.clientY - dragState.current.startY;
-
     dragState.current = { startX: event.clientX, startY: event.clientY };
-
     setCropPosition((current) =>
       clampCropPosition({ x: current.x + deltaX, y: current.y + deltaY }, zoom),
     );
@@ -349,9 +306,7 @@ const Profile = () => {
   };
 
   const handleSaveAvatar = () => {
-    if (!croppedPreview) {
-      return;
-    }
+    if (!croppedPreview) return;
     setDraftPhotoURL(croppedPreview);
     setIsAvatarModalOpen(false);
     setSelectedImage(null);
@@ -366,45 +321,32 @@ const Profile = () => {
     setCropPosition({ x: 0, y: 0 });
   };
 
-  const handleAvatarModalChange = (open: boolean) => {
-    if (!open) {
-      handleCloseAvatarModal();
-      return;
-    }
-    setIsAvatarModalOpen(true);
-  };
-
+  // MAIN SAVE LOGIC (Database Only)
   const handleSaveProfile = async () => {
-    if (!userId || !isDirty) {
-      return;
-    }
+    if (!userId || !isDirty) return;
     setIsSaving(true);
     setStatusMessage("");
+
     try {
+      // 1. Save all data (including Base64 photo) to Firestore
       const profileRef = doc(db, "users", userId, "profile", "info");
       await setDoc(
         profileRef,
         {
           displayName: draftDisplayName,
           bio: draftBio,
-          photoURL: draftPhotoURL || "",
+          // We save the long Base64 string directly here
+          photoURL: draftPhotoURL || "", 
           email: userEmail || "",
           updatedAt: serverTimestamp(),
         },
         { merge: true },
       );
 
-      if (user) {
-        const updates: { displayName?: string; photoURL?: string } = {};
-        if (draftDisplayName !== initialProfile.displayName) {
-          updates.displayName = draftDisplayName;
-        }
-        if (draftPhotoURL !== initialProfile.photoURL) {
-          updates.photoURL = draftPhotoURL || "";
-        }
-        if (Object.keys(updates).length > 0) {
-          await updateProfile(user, updates);
-        }
+      // 2. Update Firebase Auth (Display Name ONLY)
+      // We DO NOT update photoURL in Auth because Base64 is too long for Auth
+      if (user && draftDisplayName !== initialProfile.displayName) {
+        await updateProfile(user, { displayName: draftDisplayName });
       }
 
       setInitialProfile({
@@ -412,10 +354,11 @@ const Profile = () => {
         bio: draftBio,
         photoURL: draftPhotoURL || "",
       });
-      setStatusMessage("Changes saved successfully.");
+      
+      setStatusMessage("Changes saved to database successfully.");
     } catch (error) {
       console.error("Failed to save profile", error);
-      setStatusMessage("We couldn't save your changes. Please try again.");
+      setStatusMessage("Failed to save changes. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -466,51 +409,37 @@ const Profile = () => {
               </p>
             </div>
           </div>
+          {/* Stats Section */}
           <div className="space-y-4">
             <div>
-              <h3 className="text-lg font-semibold text-foreground">
-                Identity overview
-              </h3>
+              <h3 className="text-lg font-semibold text-foreground">Identity overview</h3>
               <p className="text-sm text-muted-foreground">
                 This is how your academic identity appears across NexaSense.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Notes uploaded
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
-                  {notesUploaded}
-                </p>
+                <p className="text-xs uppercase text-muted-foreground">Notes uploaded</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{notesUploaded}</p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Total summaries
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">
-                  {totalSummaries}
-                </p>
+                <p className="text-xs uppercase text-muted-foreground">Total summaries</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{totalSummaries}</p>
               </div>
               <div className="rounded-xl border border-border/60 bg-muted/20 p-4 sm:col-span-2">
-                <p className="text-xs uppercase text-muted-foreground">
-                  Last activity
-                </p>
+                <p className="text-xs uppercase text-muted-foreground">Last activity</p>
                 <p className="mt-2 text-lg font-semibold text-foreground">
-                  {lastActivity
-                    ? lastActivity.toLocaleString()
-                    : "No activity recorded yet."}
+                  {lastActivity ? lastActivity.toLocaleString() : "No activity recorded yet."}
                 </p>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Editable Fields */}
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="rounded-2xl border border-border/60 bg-card p-6">
-            <h3 className="text-lg font-semibold text-foreground">
-              Editable profile
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground">Editable profile</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Update how your name appears across NexaSense and add a short bio.
             </p>
@@ -536,31 +465,21 @@ const Profile = () => {
               </label>
             </div>
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <Button
-                type="button"
-                onClick={handleSaveProfile}
-                disabled={!isDirty || isSaving}
-              >
+              <Button type="button" onClick={handleSaveProfile} disabled={!isDirty || isSaving}>
                 {isSaving ? "Saving..." : "Save changes"}
               </Button>
               {statusMessage && (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {statusMessage}
-                </p>
+                <p className="text-sm text-muted-foreground" role="status">{statusMessage}</p>
               )}
               {!isDirty && !isSaving && (
-                <p className="text-sm text-muted-foreground">
-                  Your profile is up to date.
-                </p>
+                <p className="text-sm text-muted-foreground">Your profile is up to date.</p>
               )}
             </div>
           </div>
 
           <div className="space-y-6">
             <section className="rounded-2xl border border-border/60 bg-card p-6">
-              <h3 className="text-lg font-semibold text-foreground">
-                Account &amp; security
-              </h3>
+              <h3 className="text-lg font-semibold text-foreground">Account &amp; security</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Manage your active session and account status.
               </p>
@@ -575,16 +494,14 @@ const Profile = () => {
                 >
                   Logout
                 </Button>
-                <div className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
-                  Delete account (coming soon)
-                </div>
               </div>
             </section>
           </div>
         </section>
       </div>
 
-      <Dialog open={isAvatarModalOpen} onOpenChange={handleAvatarModalChange}>
+      {/* Avatar Modal */}
+      <Dialog open={isAvatarModalOpen} onOpenChange={setIsAvatarModalOpen}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit profile photo</DialogTitle>
@@ -640,53 +557,29 @@ const Profile = () => {
                     onValueChange={(value) => setZoom(value[0])}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Drag to reposition your image within the square crop area.
-                </p>
               </div>
             </div>
             <div className="space-y-4">
               <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
-                <p className="text-xs font-semibold uppercase text-muted-foreground">
-                  Preview
-                </p>
+                <p className="text-xs font-semibold uppercase text-muted-foreground">Preview</p>
                 <div className="mt-4 flex items-center justify-center">
                   <div className="h-32 w-32 overflow-hidden rounded-full border border-border bg-muted">
                     {croppedPreview ? (
-                      <img
-                        src={croppedPreview}
-                        alt="Cropped preview"
-                        className="h-full w-full object-cover"
-                      />
+                      <img src={croppedPreview} alt="Preview" className="h-full w-full object-cover" />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                        No preview
-                      </div>
+                      <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">No preview</div>
                     )}
                   </div>
                 </div>
               </div>
-              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-                Your avatar appears in navigation and across shared learning
-                spaces.
-              </div>
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleCloseAvatarModal}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSaveAvatar}
-              disabled={!croppedPreview}
-            >
-              Save photo
-            </Button>
+            <Button type="button" variant="outline" onClick={handleCloseAvatarModal}>Cancel</Button>
+            <Button type="button" onClick={handleSaveAvatar} disabled={!croppedPreview}>Save photo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 };

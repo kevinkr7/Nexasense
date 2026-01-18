@@ -2,7 +2,8 @@ import { ArrowLeft, Bell, Moon, Sun, User } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "firebase/auth";
-import { auth } from "@/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
 
 export const Navigation = () => {
@@ -15,7 +16,8 @@ export const Navigation = () => {
   const isHome = location.pathname === "/";
   const isAuthPage = isLogin || isRegister;
 
-  const { isAuthenticated, userDisplayName, userEmail, userPhotoURL } =
+  // 1. Get userId from Auth so we can find the database document
+  const { isAuthenticated, userDisplayName, userEmail, userPhotoURL, userId } =
     useAuth();
   const isLoggedIn = isAuthenticated;
 
@@ -23,6 +25,30 @@ export const Navigation = () => {
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [dailyQuote, setDailyQuote] = useState("");
   const [typedQuote, setTypedQuote] = useState("");
+
+  // 2. New State for the synced avatar
+  const [avatarUrl, setAvatarUrl] = useState(userPhotoURL || "");
+
+  // 3. REAL-TIME SYNC: Listen to Firestore for the Base64 image
+  useEffect(() => {
+    if (!userId) {
+      setAvatarUrl("");
+      return;
+    }
+
+    const profileRef = doc(db, "users", userId, "profile", "info");
+    
+    // onSnapshot triggers instantly whenever the document changes in the database
+    const unsubscribe = onSnapshot(profileRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        const data = docSnapshot.data();
+        // Use the Firestore image (Base64) if it exists, otherwise fallback to Auth
+        setAvatarUrl(data.photoURL || userPhotoURL || "");
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userId, userPhotoURL]);
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -112,13 +138,10 @@ export const Navigation = () => {
   }, [isProfileOpen]);
 
   const toggleTheme = () => {
-    // Check if browser supports View Transitions
     if (!document.startViewTransition) {
       setTheme((prev) => (prev === "dark" ? "light" : "dark"));
       return;
     }
-
-    // This triggers the browser's native cross-fade animation
     document.startViewTransition(() => {
       setTheme((prev) => (prev === "dark" ? "light" : "dark"));
     });
@@ -214,10 +237,19 @@ export const Navigation = () => {
                   <button
                     type="button"
                     onClick={() => setIsProfileOpen((prev) => !prev)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-foreground overflow-hidden"
                     aria-label="Profile options"
                   >
-                    <User className="h-4 w-4" />
+                    {/* 4. Use the synced avatarUrl here */}
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="Profile"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-4 w-4" />
+                    )}
                   </button>
 
                   {isProfileOpen && (
@@ -225,9 +257,10 @@ export const Navigation = () => {
                       <div className="flex gap-4 px-4 pb-4 pt-4">
                         <div className="flex flex-col items-start gap-2">
                           <div className="h-16 w-16 overflow-hidden rounded-full bg-muted">
-                            {userPhotoURL ? (
+                            {/* 5. Use the synced avatarUrl here as well */}
+                            {avatarUrl ? (
                               <img
-                                src={userPhotoURL}
+                                src={avatarUrl}
                                 alt="Profile"
                                 className="h-full w-full object-cover"
                               />
