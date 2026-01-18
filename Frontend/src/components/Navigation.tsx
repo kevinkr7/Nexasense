@@ -11,7 +11,9 @@ export const Navigation = () => {
 
   // Route checks
   const isLogin = location.pathname === "/login";
+  const isRegister = location.pathname === "/register";
   const isHome = location.pathname === "/";
+  const isAuthPage = isLogin || isRegister;
 
   const { isAuthenticated, userDisplayName, userEmail, userPhotoURL } =
     useAuth();
@@ -19,6 +21,8 @@ export const Navigation = () => {
 
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const [dailyQuote, setDailyQuote] = useState("");
+  const [typedQuote, setTypedQuote] = useState("");
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -40,6 +44,56 @@ export const Navigation = () => {
     }
     localStorage.setItem("nexasense_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadQuotes = async () => {
+      try {
+        const response = await fetch("/resources/quotes.txt");
+        if (!response.ok) {
+          return;
+        }
+        const text = await response.text();
+        const quotes = text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        if (quotes.length === 0) {
+          return;
+        }
+        const dayIndex = new Date().getDate() - 1;
+        const quote = quotes[dayIndex % quotes.length];
+        if (isMounted) {
+          setDailyQuote(quote);
+        }
+      } catch (error) {
+        console.warn("Failed to load daily quote", error);
+      }
+    };
+
+    loadQuotes();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dailyQuote) {
+      setTypedQuote("");
+      return;
+    }
+    let index = 0;
+    setTypedQuote("");
+    const interval = setInterval(() => {
+      index += 1;
+      setTypedQuote(dailyQuote.slice(0, index));
+      if (index >= dailyQuote.length) {
+        clearInterval(interval);
+      }
+    }, 60);
+
+    return () => clearInterval(interval);
+  }, [dailyQuote]);
 
   useEffect(() => {
     if (!isProfileOpen) return;
@@ -71,11 +125,11 @@ export const Navigation = () => {
   };
 
   const showBackToHome = isLoggedIn && !isHome;
+  const showAuthCta = !isLoggedIn && !isAuthPage;
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem("nexasense_token");
       setIsProfileOpen(false);
       navigate("/");
     } catch (err) {
@@ -107,9 +161,21 @@ export const Navigation = () => {
               NexaSense
             </h1>
 
+            {typedQuote && (
+              <div className="hidden md:flex items-center text-sm font-mono text-muted-foreground">
+                <span className="whitespace-nowrap">{typedQuote}</span>
+              </div>
+            )}
+
             {isLogin && (
               <div className="px-3 py-1 bg-accent/10 text-accent rounded-full text-sm font-medium">
                 Login
+              </div>
+            )}
+
+            {isRegister && (
+              <div className="px-3 py-1 bg-accent/10 text-accent rounded-full text-sm font-medium">
+                Register
               </div>
             )}
           </div>
@@ -120,7 +186,9 @@ export const Navigation = () => {
               <button
                 type="button"
                 onClick={() => navigate("/login")}
-                className="text-sm font-semibold text-foreground hover:text-foreground/80"
+                className={`text-sm font-semibold text-foreground hover:text-foreground/80 ${
+                  showAuthCta ? "" : "hidden"
+                }`}
               >
                 Get Started
               </button>

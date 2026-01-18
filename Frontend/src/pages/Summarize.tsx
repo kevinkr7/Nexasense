@@ -357,7 +357,7 @@ const uniqueStrings = (values: string[]) => {
 };
 
 const Summarize = () => {
-  const { userId } = useAuth();
+  const { user, userId } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [summary, setSummary] = useState("");
   const [simplified, setSimplified] = useState("");
@@ -452,12 +452,12 @@ const Summarize = () => {
       return;
     }
 
-    const token = localStorage.getItem("nexasense_token");
-    if (!token || !userId) {
+    if (!user || !userId) {
       setError("Please log in again to upload your file.");
       return;
     }
 
+    const token = await user.getIdToken();
     setIsUploading(true);
     setViewState("loading");
     setError("");
