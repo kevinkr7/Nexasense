@@ -4,6 +4,7 @@ import { auth } from "@/firebase";
 
 type AuthContextValue = {
   isAuthenticated: boolean;
+  isEmailVerified: boolean;
   isLoading: boolean;
   userId: string | null;
   userDisplayName: string | null;
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, setState] = useState<AuthContextValue>({
     isAuthenticated: false,
+    isEmailVerified: false,
     isLoading: true,
     userId: null,
     userDisplayName: null,
@@ -26,10 +28,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const token = await user.getIdToken();
-        localStorage.setItem("nexasense_token", token);
+        await user.reload();
+        const isEmailVerified = user.emailVerified;
+        if (isEmailVerified) {
+          const token = await user.getIdToken();
+          localStorage.setItem("nexasense_token", token);
+        } else {
+          localStorage.removeItem("nexasense_token");
+        }
         setState({
-          isAuthenticated: true,
+          isAuthenticated: isEmailVerified,
+          isEmailVerified,
           isLoading: false,
           userId: user.uid,
           userDisplayName: user.displayName,
@@ -40,6 +49,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem("nexasense_token");
         setState({
           isAuthenticated: false,
+          isEmailVerified: false,
           isLoading: false,
           userId: null,
           userDisplayName: null,
