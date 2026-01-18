@@ -1,126 +1,128 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type AuthVideoProps = {
-  className?: string;
-};
+type Theme = "light" | "dark";
+type Direction = "forward" | "backward";
 
-const getInitialTheme = () => {
-  if (typeof window === "undefined") return "light";
-  const storedTheme = localStorage.getItem("nexasense_theme");
-  if (storedTheme === "light" || storedTheme === "dark") {
-    return storedTheme;
-  }
+const FADE_WINDOW = 0.6; // seconds before end to start fading
+
+const resolveInitialTheme = (): Theme => {
+  const stored = localStorage.getItem("nexasense_theme");
+  if (stored === "light" || stored === "dark") return stored;
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
 };
 
-export const AuthVideo = ({ className }: AuthVideoProps) => {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme());
-  const [isReversing, setIsReversing] = useState(false);
+export const AuthVideo = ({ className }: { className?: string }) => {
+  const videoA = useRef<HTMLVideoElement>(null);
+  const videoB = useRef<HTMLVideoElement>(null);
 
-  const videoSource = useMemo(
-    () =>
-      theme === "dark"
-        ? "/resources/ambient-study-dark.mp4"
-        : "/resources/ambient-study-light.mp4",
-    [theme]
-  );
+  const [theme, setTheme] = useState<Theme | null>(null);
+  const [direction, setDirection] = useState<Direction>("forward");
+  const [active, setActive] = useState<"A" | "B">("A");
+  const [fading, setFading] = useState(false);
 
+  /* ---------------- Theme sync ---------------- */
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const nextTheme = document.documentElement.classList.contains("dark")
-        ? "dark"
-        : "light";
-      setTheme(nextTheme);
+    setTheme(resolveInitialTheme());
+
+    const obs = new MutationObserver(() => {
+      setTheme(
+        document.documentElement.classList.contains("dark") ? "dark" : "light"
+      );
     });
-    observer.observe(document.documentElement, {
+
+    obs.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
-    return () => observer.disconnect();
+
+    return () => obs.disconnect();
   }, []);
 
+  const resolveSrc = (dir: Direction) => {
+    if (!theme) return "";
+    return theme === "dark"
+      ? `/resources/ambient-dark-${dir}.mp4`
+      : `/resources/ambient-light-${dir}.mp4`;
+  };
+
+  /* ---------------- Playback engine ---------------- */
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    setIsReversing(false);
-    const handleLoaded = () => {
-      video.playbackRate = 1;
-      video.play().catch(() => undefined);
-    };
-    video.addEventListener("loadeddata", handleLoaded);
-    return () => video.removeEventListener("loadeddata", handleLoaded);
-  }, [videoSource]);
+    if (!theme) return;
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    let rafId: number | null = null;
-    let lastTime: number | null = null;
-    const epsilon = 0.05;
+    const current = active === "A" ? videoA.current : videoB.current;
+    const next = active === "A" ? videoB.current : videoA.current;
+    if (!current || !next) return;
 
-    const stepReverse = (timestamp: number) => {
-      if (!lastTime) {
-        lastTime = timestamp;
-      }
-      const delta = (timestamp - lastTime) / 1000;
-      lastTime = timestamp;
-      video.currentTime = Math.max(0, video.currentTime - delta);
-      if (video.currentTime <= epsilon) {
-        setIsReversing(false);
-        lastTime = null;
-        return;
-      }
-      rafId = requestAnimationFrame(stepReverse);
-    };
+    const nextDirection: Direction =
+      direction === "forward" ? "backward" : "forward";
 
-    const handleEnded = () => {
-      setIsReversing(true);
-    };
+    // Preload next video
+    next.src = resolveSrc(nextDirection);
+    next.currentTime = 0;
+    next.pause();
 
-    const handleTimeUpdate = () => {
-      if (!isReversing && video.duration && video.currentTime >= video.duration - epsilon) {
-        setIsReversing(true);
+    let fadeStarted = false;
+
+    const onTimeUpdate = () => {
+      if (
+        !fadeStarted &&
+        current.duration &&
+        current.currentTime >= current.duration - FADE_WINDOW
+      ) {
+        fadeStarted = true;
+        setFading(true);
+        next.play().catch(() => undefined);
       }
     };
 
-    if (isReversing) {
-      video.pause();
-      video.playbackRate = -1;
-      rafId = requestAnimationFrame(stepReverse);
-    } else {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      video.playbackRate = 1;
-      video.play().catch(() => undefined);
-    }
+    const onEnded = () => {
+      setActive((p) => (p === "A" ? "B" : "A"));
+      setDirection(nextDirection);
+      setFading(false);
+    };
 
-    video.addEventListener("ended", handleEnded);
-    video.addEventListener("timeupdate", handleTimeUpdate);
+    current.addEventListener("timeupdate", onTimeUpdate);
+    current.addEventListener("ended", onEnded);
+
+    current.play().catch(() => undefined);
+
     return () => {
-      video.removeEventListener("ended", handleEnded);
-      video.removeEventListener("timeupdate", handleTimeUpdate);
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
+      current.removeEventListener("timeupdate", onTimeUpdate);
+      current.removeEventListener("ended", onEnded);
     };
-  }, [isReversing, videoSource]);
+  }, [theme, direction, active]);
+
+  if (!theme) return <div className={`h-full w-full ${className ?? ""}`} />;
 
   return (
-    <div className={`relative h-full w-full ${className ?? ""}`}>
+    <div className={`relative h-full w-full overflow-hidden ${className ?? ""}`}>
+      {/* Video A */}
       <video
-        ref={videoRef}
-        className="h-full w-full object-cover"
-        src={videoSource}
-        autoPlay
+        ref={videoA}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+          active === "A" && !fading ? "opacity-100" : "opacity-0"
+        }`}
+        src={resolveSrc(direction)}
         muted
         playsInline
-        preload="none"
+        preload="auto"
       />
-      <div className="pointer-events-none absolute right-0 top-0 h-full w-28 bg-gradient-to-l from-background via-background/40 to-transparent" />
+
+      {/* Video B */}
+      <video
+        ref={videoB}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+          active === "B" || fading ? "opacity-100" : "opacity-0"
+        }`}
+        muted
+        playsInline
+        preload="auto"
+      />
+
+      {/* Right-edge blend */}
+      <div className="pointer-events-none absolute right-0 top-0 h-full w-28 bg-gradient-to-l from-background via-background/60 to-transparent" />
     </div>
   );
 };
