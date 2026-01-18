@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { signOut, updateProfile } from "firebase/auth";
 import {
@@ -12,41 +12,143 @@ import {
 import { auth, db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
+import { unstable_useBlocker as useBlocker, useNavigate } from "react-router-dom";
+
+type CropPosition = {
+  x: number;
+  y: number;
+};
+
+type ProfileSnapshot = {
+  displayName: string;
+  bio: string;
+  photoURL: string;
+};
+
+const CROP_SIZE = 240;
+const OUTPUT_SIZE = 320;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(Math.max(value, min), max);
+
+const createCroppedImage = async (
+  imageSrc: string,
+  crop: CropPosition,
+  zoom: number,
+): Promise<string> => {
+  const image = new Image();
+  image.src = imageSrc;
+
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Failed to load image"));
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = OUTPUT_SIZE;
+  canvas.height = OUTPUT_SIZE;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Failed to get canvas context");
+  }
+
+  const displayWidth = image.width * zoom;
+  const displayHeight = image.height * zoom;
+  const imageLeft = CROP_SIZE / 2 + crop.x - displayWidth / 2;
+  const imageTop = CROP_SIZE / 2 + crop.y - displayHeight / 2;
+
+  const sourceX = (0 - imageLeft) / zoom;
+  const sourceY = (0 - imageTop) / zoom;
+  const sourceSize = CROP_SIZE / zoom;
+
+  context.drawImage(
+    image,
+    sourceX,
+    sourceY,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    OUTPUT_SIZE,
+    OUTPUT_SIZE,
+  );
+
+  return canvas.toDataURL("image/jpeg", 0.92);
+};
 
 const Profile = () => {
   const navigate = useNavigate();
   const { user, userId, userDisplayName, userEmail, userPhotoURL } = useAuth();
-  const [displayName, setDisplayName] = useState(userDisplayName || "");
-  const [bio, setBio] = useState("");
-  const [photoPreview, setPhotoPreview] = useState<string | null>(
-    userPhotoURL || null
+  const [initialProfile, setInitialProfile] = useState<ProfileSnapshot>({
+    displayName: userDisplayName || "",
+    bio: "",
+    photoURL: userPhotoURL || "",
+  });
+  const [draftDisplayName, setDraftDisplayName] = useState(
+    userDisplayName || "",
   );
-  const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
+  const [draftBio, setDraftBio] = useState("");
+  const [draftPhotoURL, setDraftPhotoURL] = useState(userPhotoURL || "");
   const [notesUploaded, setNotesUploaded] = useState(0);
   const [totalSummaries, setTotalSummaries] = useState(0);
   const [lastActivity, setLastActivity] = useState<Date | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(
+    null,
+  );
+  const [cropPosition, setCropPosition] = useState<CropPosition>({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedPreview, setCroppedPreview] = useState<string | null>(null);
+  const dragState = useRef<{ startX: number; startY: number } | null>(null);
 
-  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result?.toString() ?? null;
-      setPhotoPreview(result);
-      setPhotoDataUrl(result);
-    };
-    reader.readAsDataURL(file);
-  };
+  const avatarSrc = draftPhotoURL || userPhotoURL || "";
+
+  const isDirty = useMemo(() => {
+    return (
+      draftDisplayName.trim() !== initialProfile.displayName.trim() ||
+      draftBio.trim() !== initialProfile.bio.trim() ||
+      (draftPhotoURL || "") !== (initialProfile.photoURL || "")
+    );
+  }, [draftBio, draftDisplayName, draftPhotoURL, initialProfile]);
+
+  const blocker = useBlocker(isDirty);
 
   useEffect(() => {
-    setDisplayName(userDisplayName || "");
-    setPhotoPreview(userPhotoURL || null);
-  }, [userDisplayName, userPhotoURL]);
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) {
+        return;
+      }
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
 
   useEffect(() => {
     if (!userId) {
@@ -66,25 +168,38 @@ const Profile = () => {
 
       if (profileSnapshot.exists()) {
         const data = profileSnapshot.data();
-        setDisplayName(
-          (data.displayName as string | undefined) || userDisplayName || ""
-        );
-        setBio((data.bio as string | undefined) || "");
-        if (data.photoURL) {
-          setPhotoPreview(data.photoURL as string);
-        }
+        const snapshot: ProfileSnapshot = {
+          displayName:
+            (data.displayName as string | undefined) || userDisplayName || "",
+          bio: (data.bio as string | undefined) || "",
+          photoURL:
+            (data.photoURL as string | undefined) || userPhotoURL || "",
+        };
+        setInitialProfile(snapshot);
+        setDraftDisplayName(snapshot.displayName);
+        setDraftBio(snapshot.bio);
+        setDraftPhotoURL(snapshot.photoURL);
       } else {
+        const snapshot: ProfileSnapshot = {
+          displayName: userDisplayName || "",
+          bio: "",
+          photoURL: userPhotoURL || "",
+        };
         await setDoc(
           profileRef,
           {
-            displayName: userDisplayName || "",
+            displayName: snapshot.displayName,
             email: userEmail || "",
-            bio: "",
+            bio: snapshot.bio,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
+        setInitialProfile(snapshot);
+        setDraftDisplayName(snapshot.displayName);
+        setDraftBio(snapshot.bio);
+        setDraftPhotoURL(snapshot.photoURL);
       }
 
       if (statsSnapshot.exists()) {
@@ -98,7 +213,7 @@ const Profile = () => {
     };
 
     loadProfile();
-  }, [userId, userDisplayName, userEmail]);
+  }, [userId, userDisplayName, userEmail, userPhotoURL]);
 
   const accountCreatedLabel = useMemo(() => {
     const createdAt = user?.metadata.creationTime;
@@ -108,8 +223,139 @@ const Profile = () => {
     return new Date(createdAt).toLocaleDateString();
   }, [user]);
 
-  const handleSave = async () => {
-    if (!userId) {
+  useEffect(() => {
+    if (!selectedImage) {
+      setImageSize(null);
+      return;
+    }
+
+    const image = new Image();
+    image.src = selectedImage;
+    image.onload = () => {
+      setImageSize({ width: image.width, height: image.height });
+    };
+  }, [selectedImage]);
+
+  const clampCropPosition = useCallback(
+    (nextCrop: CropPosition, zoomLevel: number) => {
+      if (!imageSize) {
+        return nextCrop;
+      }
+      const displayWidth = imageSize.width * zoomLevel;
+      const displayHeight = imageSize.height * zoomLevel;
+      const maxOffsetX = Math.max(0, (displayWidth - CROP_SIZE) / 2);
+      const maxOffsetY = Math.max(0, (displayHeight - CROP_SIZE) / 2);
+      return {
+        x: clamp(nextCrop.x, -maxOffsetX, maxOffsetX),
+        y: clamp(nextCrop.y, -maxOffsetY, maxOffsetY),
+      };
+    },
+    [imageSize],
+  );
+
+  useEffect(() => {
+    if (!imageSize) {
+      return;
+    }
+    setCropPosition((current) => clampCropPosition(current, zoom));
+  }, [clampCropPosition, imageSize, zoom]);
+
+  useEffect(() => {
+    if (!selectedImage) {
+      setCroppedPreview(null);
+      return;
+    }
+
+    const generatePreview = async () => {
+      try {
+        const preview = await createCroppedImage(selectedImage, cropPosition, zoom);
+        setCroppedPreview(preview);
+      } catch (error) {
+        console.error("Failed to generate cropped preview", error);
+      }
+    };
+
+    generatePreview();
+  }, [cropPosition, selectedImage, zoom]);
+
+  const handleAvatarFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result?.toString() ?? null;
+      if (!result) {
+        return;
+      }
+      setSelectedImage(result);
+      setZoom(1);
+      setCropPosition({ x: 0, y: 0 });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCropPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    dragState.current = { startX: event.clientX, startY: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleCropPointerMove = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (!dragState.current) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.current.startX;
+    const deltaY = event.clientY - dragState.current.startY;
+
+    dragState.current = { startX: event.clientX, startY: event.clientY };
+
+    setCropPosition((current) =>
+      clampCropPosition({ x: current.x + deltaX, y: current.y + deltaY }, zoom),
+    );
+  };
+
+  const handleCropPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    dragState.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const handleSaveAvatar = () => {
+    if (!croppedPreview) {
+      return;
+    }
+    setDraftPhotoURL(croppedPreview);
+    setIsAvatarModalOpen(false);
+    setSelectedImage(null);
+    setZoom(1);
+    setCropPosition({ x: 0, y: 0 });
+  };
+
+  const handleCloseAvatarModal = () => {
+    setIsAvatarModalOpen(false);
+    setSelectedImage(null);
+    setZoom(1);
+    setCropPosition({ x: 0, y: 0 });
+  };
+
+  const handleAvatarModalChange = (open: boolean) => {
+    if (!open) {
+      handleCloseAvatarModal();
+      return;
+    }
+    setIsAvatarModalOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!userId || !isDirty) {
       return;
     }
     setIsSaving(true);
@@ -119,30 +365,34 @@ const Profile = () => {
       await setDoc(
         profileRef,
         {
-          displayName,
-          bio,
-          photoURL: photoPreview,
+          displayName: draftDisplayName,
+          bio: draftBio,
+          photoURL: draftPhotoURL || "",
           email: userEmail || "",
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       if (user) {
         const updates: { displayName?: string; photoURL?: string } = {};
-        if (displayName) {
-          updates.displayName = displayName;
+        if (draftDisplayName !== initialProfile.displayName) {
+          updates.displayName = draftDisplayName;
         }
-        if (photoDataUrl) {
-          updates.photoURL = photoDataUrl;
+        if (draftPhotoURL !== initialProfile.photoURL) {
+          updates.photoURL = draftPhotoURL || "";
         }
         if (Object.keys(updates).length > 0) {
           await updateProfile(user, updates);
         }
       }
 
-      setStatusMessage("Profile saved.");
-      setPhotoDataUrl(null);
+      setInitialProfile({
+        displayName: draftDisplayName,
+        bio: draftBio,
+        photoURL: draftPhotoURL || "",
+      });
+      setStatusMessage("Changes saved successfully.");
     } catch (error) {
       console.error("Failed to save profile", error);
       setStatusMessage("We couldn't save your changes. Please try again.");
@@ -163,24 +413,32 @@ const Profile = () => {
           </p>
         </header>
 
-        <section className="grid gap-6 rounded-2xl border border-border/60 bg-card p-6 md:grid-cols-[180px_1fr]">
+        <section className="grid gap-6 rounded-2xl border border-border/60 bg-card p-6 md:grid-cols-[220px_1fr]">
           <div className="flex flex-col items-start gap-4">
-            <div className="h-32 w-32 overflow-hidden rounded-full border border-border bg-muted">
-              {photoPreview ? (
+            <button
+              type="button"
+              onClick={() => setIsAvatarModalOpen(true)}
+              className="group relative h-32 w-32 overflow-hidden rounded-full border border-border bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Edit profile photo"
+            >
+              {avatarSrc ? (
                 <img
-                  src={photoPreview}
+                  src={avatarSrc}
                   alt="Profile"
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-opacity group-hover:opacity-80"
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
                   No photo
                 </div>
               )}
-            </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-semibold uppercase tracking-wide text-white opacity-0 transition-opacity group-hover:opacity-100">
+                Edit photo
+              </div>
+            </button>
             <div>
               <h2 className="text-xl font-semibold text-foreground">
-                {displayName || "NexaSense Learner"}
+                {draftDisplayName || "NexaSense Learner"}
               </h2>
               <p className="text-sm text-muted-foreground">{userEmail}</p>
               <p className="mt-2 text-xs text-muted-foreground">
@@ -191,11 +449,10 @@ const Profile = () => {
           <div className="space-y-4">
             <div>
               <h3 className="text-lg font-semibold text-foreground">
-                Profile overview
+                Identity overview
               </h3>
               <p className="text-sm text-muted-foreground">
-                Keep your information accurate so your study space stays
-                personalized.
+                This is how your academic identity appears across NexaSense.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -232,7 +489,7 @@ const Profile = () => {
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="rounded-2xl border border-border/60 bg-card p-6">
             <h3 className="text-lg font-semibold text-foreground">
-              Editable information
+              Editable profile
             </h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Update how your name appears across NexaSense and add a short bio.
@@ -242,8 +499,8 @@ const Profile = () => {
                 Display name
                 <input
                   type="text"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+                  value={draftDisplayName}
+                  onChange={(event) => setDraftDisplayName(event.target.value)}
                   className="mt-2 w-full rounded-lg border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="Add a display name"
                 />
@@ -251,8 +508,8 @@ const Profile = () => {
               <label className="block text-sm font-medium text-foreground">
                 Bio / About
                 <textarea
-                  value={bio}
-                  onChange={(event) => setBio(event.target.value)}
+                  value={draftBio}
+                  onChange={(event) => setDraftBio(event.target.value)}
                   className="mt-2 min-h-[120px] w-full rounded-lg border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                   placeholder="Share a short academic focus or goal."
                 />
@@ -261,51 +518,174 @@ const Profile = () => {
             <div className="mt-6 flex flex-wrap items-center gap-4">
               <Button
                 type="button"
-                onClick={handleSave}
-                disabled={isSaving}
+                onClick={handleSaveProfile}
+                disabled={!isDirty || isSaving}
               >
                 {isSaving ? "Saving..." : "Save changes"}
               </Button>
               {statusMessage && (
-                <p className="text-sm text-muted-foreground">{statusMessage}</p>
+                <p className="text-sm text-muted-foreground" role="status">
+                  {statusMessage}
+                </p>
+              )}
+              {!isDirty && !isSaving && (
+                <p className="text-sm text-muted-foreground">
+                  Your profile is up to date.
+                </p>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-border/60 bg-card p-6">
-            <h3 className="text-lg font-semibold text-foreground">
-              Account actions
-            </h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage your profile picture and session securely.
-            </p>
-            <div className="mt-6 space-y-4">
-              <label className="block text-sm font-medium text-foreground">
-                Change profile picture
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="mt-2 block w-full text-sm text-muted-foreground file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground"
-                />
-              </label>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={async () => {
-                  await signOut(auth);
-                  navigate("/");
-                }}
-              >
-                Logout
-              </Button>
-              <div className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
-                Delete account (coming soon)
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-border/60 bg-card p-6">
+              <h3 className="text-lg font-semibold text-foreground">
+                Account &amp; security
+              </h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage your active session and account status.
+              </p>
+              <div className="mt-6 space-y-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    await signOut(auth);
+                    navigate("/");
+                  }}
+                >
+                  Logout
+                </Button>
+                <div className="rounded-xl border border-dashed border-border/70 p-4 text-sm text-muted-foreground">
+                  Delete account (coming soon)
+                </div>
               </div>
-            </div>
+            </section>
           </div>
         </section>
       </div>
+
+      <Dialog open={isAvatarModalOpen} onOpenChange={handleAvatarModalChange}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit profile photo</DialogTitle>
+            <DialogDescription>
+              Upload an image, crop it to a square, and save your updated avatar.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-6 md:grid-cols-[1.3fr_1fr]">
+            <div className="space-y-4">
+              <div
+                className="relative mx-auto h-[240px] w-[240px] overflow-hidden rounded-2xl border border-border bg-muted"
+                onPointerDown={handleCropPointerDown}
+                onPointerMove={handleCropPointerMove}
+                onPointerUp={handleCropPointerUp}
+                onPointerLeave={handleCropPointerUp}
+              >
+                {selectedImage ? (
+                  <img
+                    src={selectedImage}
+                    alt="Crop"
+                    className="absolute left-1/2 top-1/2 h-auto w-auto max-w-none select-none"
+                    style={{
+                      transform: `translate(calc(-50% + ${cropPosition.x}px), calc(-50% + ${cropPosition.y}px)) scale(${zoom})`,
+                    }}
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Upload an image to begin
+                  </div>
+                )}
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-medium text-foreground">
+                  Upload image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFileChange}
+                    className="mt-2 block w-full text-sm text-muted-foreground file:mr-4 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-primary-foreground"
+                  />
+                </label>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Zoom</span>
+                    <span>{Math.round(zoom * 100)}%</span>
+                  </div>
+                  <Slider
+                    value={[zoom]}
+                    min={1}
+                    max={2.5}
+                    step={0.05}
+                    onValueChange={(value) => setZoom(value[0])}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Drag to reposition your image within the square crop area.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs font-semibold uppercase text-muted-foreground">
+                  Preview
+                </p>
+                <div className="mt-4 flex items-center justify-center">
+                  <div className="h-32 w-32 overflow-hidden rounded-full border border-border bg-muted">
+                    {croppedPreview ? (
+                      <img
+                        src={croppedPreview}
+                        alt="Cropped preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+                        No preview
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
+                Your avatar appears in navigation and across shared learning
+                spaces.
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleCloseAvatarModal}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveAvatar}
+              disabled={!croppedPreview}
+            >
+              Save photo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={blocker.state === "blocked"}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved edits on your profile. Save or discard them before
+              leaving this page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => blocker.reset()}>
+              Stay here
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => blocker.proceed()}>
+              Leave page
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
