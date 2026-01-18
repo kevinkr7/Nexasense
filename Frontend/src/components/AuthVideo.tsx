@@ -4,25 +4,36 @@ type AuthVideoProps = {
   className?: string;
 };
 
-const getIsDarkTheme = () =>
-  document.documentElement.classList.contains("dark");
+const getInitialTheme = () => {
+  if (typeof window === "undefined") return "light";
+  const storedTheme = localStorage.getItem("nexasense_theme");
+  if (storedTheme === "light" || storedTheme === "dark") {
+    return storedTheme;
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+};
 
 export const AuthVideo = ({ className }: AuthVideoProps) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isDark, setIsDark] = useState(getIsDarkTheme());
+  const [theme, setTheme] = useState<"light" | "dark">(getInitialTheme());
   const [isReversing, setIsReversing] = useState(false);
 
   const videoSource = useMemo(
     () =>
-      isDark
+      theme === "dark"
         ? "/resources/ambient-study-dark.mp4"
         : "/resources/ambient-study-light.mp4",
-    [isDark]
+    [theme]
   );
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      setIsDark(getIsDarkTheme());
+      const nextTheme = document.documentElement.classList.contains("dark")
+        ? "dark"
+        : "light";
+      setTheme(nextTheme);
     });
     observer.observe(document.documentElement, {
       attributes: true,
@@ -36,6 +47,7 @@ export const AuthVideo = ({ className }: AuthVideoProps) => {
     if (!video) return;
     setIsReversing(false);
     const handleLoaded = () => {
+      video.playbackRate = 1;
       video.play().catch(() => undefined);
     };
     video.addEventListener("loadeddata", handleLoaded);
@@ -47,6 +59,7 @@ export const AuthVideo = ({ className }: AuthVideoProps) => {
     if (!video) return;
     let rafId: number | null = null;
     let lastTime: number | null = null;
+    const epsilon = 0.05;
 
     const stepReverse = (timestamp: number) => {
       if (!lastTime) {
@@ -55,11 +68,9 @@ export const AuthVideo = ({ className }: AuthVideoProps) => {
       const delta = (timestamp - lastTime) / 1000;
       lastTime = timestamp;
       video.currentTime = Math.max(0, video.currentTime - delta);
-      if (video.currentTime <= 0.05) {
+      if (video.currentTime <= epsilon) {
         setIsReversing(false);
         lastTime = null;
-        video.currentTime = 0;
-        video.play().catch(() => undefined);
         return;
       }
       rafId = requestAnimationFrame(stepReverse);
@@ -69,9 +80,15 @@ export const AuthVideo = ({ className }: AuthVideoProps) => {
       setIsReversing(true);
     };
 
+    const handleTimeUpdate = () => {
+      if (!isReversing && video.duration && video.currentTime >= video.duration - epsilon) {
+        setIsReversing(true);
+      }
+    };
+
     if (isReversing) {
       video.pause();
-      video.playbackRate = 1;
+      video.playbackRate = -1;
       rafId = requestAnimationFrame(stepReverse);
     } else {
       if (rafId) {
@@ -82,8 +99,10 @@ export const AuthVideo = ({ className }: AuthVideoProps) => {
     }
 
     video.addEventListener("ended", handleEnded);
+    video.addEventListener("timeupdate", handleTimeUpdate);
     return () => {
       video.removeEventListener("ended", handleEnded);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
       if (rafId) {
         cancelAnimationFrame(rafId);
       }

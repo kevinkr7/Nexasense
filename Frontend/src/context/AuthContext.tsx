@@ -1,8 +1,9 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged } from "firebase/auth";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "@/firebase";
 
 type AuthContextValue = {
+  user: User | null;
   isAuthenticated: boolean;
   isEmailVerified: boolean;
   isLoading: boolean;
@@ -10,12 +11,14 @@ type AuthContextValue = {
   userDisplayName: string | null;
   userPhotoURL: string | null;
   userEmail: string | null;
+  refreshUser: (nextUser: User | null) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [state, setState] = useState<AuthContextValue>({
+    user: null,
     isAuthenticated: false,
     isEmailVerified: false,
     isLoading: true,
@@ -23,46 +26,35 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     userDisplayName: null,
     userPhotoURL: null,
     userEmail: null,
+    refreshUser: () => undefined,
   });
 
+  const updateState = useCallback((user: User | null, isLoading = false) => {
+    setState((prev) => ({
+      ...prev,
+      user,
+      isAuthenticated: user ? user.emailVerified : false,
+      isEmailVerified: user ? user.emailVerified : false,
+      isLoading,
+      userId: user?.uid ?? null,
+      userDisplayName: user?.displayName ?? null,
+      userPhotoURL: user?.photoURL ?? null,
+      userEmail: user?.email ?? null,
+    }));
+  }, []);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        await user.reload();
-        const isEmailVerified = user.emailVerified;
-        if (isEmailVerified) {
-          const token = await user.getIdToken();
-          localStorage.setItem("nexasense_token", token);
-        } else {
-          localStorage.removeItem("nexasense_token");
-        }
-        setState({
-          isAuthenticated: isEmailVerified,
-          isEmailVerified,
-          isLoading: false,
-          userId: user.uid,
-          userDisplayName: user.displayName,
-          userPhotoURL: user.photoURL,
-          userEmail: user.email,
-        });
-      } else {
-        localStorage.removeItem("nexasense_token");
-        setState({
-          isAuthenticated: false,
-          isEmailVerified: false,
-          isLoading: false,
-          userId: null,
-          userDisplayName: null,
-          userPhotoURL: null,
-          userEmail: null,
-        });
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      updateState(user, false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [updateState]);
 
-  const value = useMemo(() => state, [state]);
+  const value = useMemo(
+    () => ({ ...state, refreshUser: updateState }),
+    [state, updateState]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -130,7 +130,6 @@ export const Navigation = () => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      localStorage.removeItem("nexasense_token");
       setIsProfileOpen(false);
       navigate("/");
     } catch (err) {
