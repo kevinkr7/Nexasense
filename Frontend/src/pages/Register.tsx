@@ -33,6 +33,7 @@ const Register = () => {
   const handleRegister = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     setError("");
+    setStatus("");
 
     if (password !== confirmPassword) {
       setError("Passwords do not match");
