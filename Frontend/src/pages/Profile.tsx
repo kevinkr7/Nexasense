@@ -13,16 +13,6 @@ import { auth, db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -31,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { unstable_useBlocker as useBlocker, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 type CropPosition = {
   x: number;
@@ -122,6 +112,7 @@ const Profile = () => {
   const [zoom, setZoom] = useState(1);
   const [croppedPreview, setCroppedPreview] = useState<string | null>(null);
   const dragState = useRef<{ startX: number; startY: number } | null>(null);
+  const hasPushedState = useRef(false);
 
   const avatarSrc = draftPhotoURL || userPhotoURL || "";
 
@@ -132,8 +123,6 @@ const Profile = () => {
       (draftPhotoURL || "") !== (initialProfile.photoURL || "")
     );
   }, [draftBio, draftDisplayName, draftPhotoURL, initialProfile]);
-
-  const blocker = useBlocker(isDirty);
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -147,6 +136,37 @@ const Profile = () => {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
+  useEffect(() => {
+    if (isDirty && !hasPushedState.current) {
+      window.history.pushState({ profileGuard: true }, "", window.location.href);
+      hasPushedState.current = true;
+    }
+    if (!isDirty) {
+      hasPushedState.current = false;
+    }
+  }, [isDirty]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (!isDirty) {
+        return;
+      }
+      const shouldLeave = window.confirm(
+        "You have unsaved changes. Do you want to leave this page?",
+      );
+      if (!shouldLeave) {
+        window.history.pushState({ profileGuard: true }, "", window.location.href);
+      } else {
+        hasPushedState.current = false;
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [isDirty]);
 
@@ -667,25 +687,6 @@ const Profile = () => {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={blocker.state === "blocked"}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
-            <AlertDialogDescription>
-              You have unsaved edits on your profile. Save or discard them before
-              leaving this page.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => blocker.reset()}>
-              Stay here
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={() => blocker.proceed()}>
-              Leave page
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
