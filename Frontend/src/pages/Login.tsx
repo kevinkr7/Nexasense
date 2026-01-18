@@ -66,6 +66,8 @@ const Login = () => {
   const handleLogin = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     setError("");
+    setStatus("");
+    setResetStatus("");
     try {
       // 🔐 Firebase login
       const userCredential = await signInWithEmailAndPassword(
@@ -96,6 +98,8 @@ const Login = () => {
 
   const handleGoogleLogin = async () => {
     setError("");
+    setStatus("");
+    setResetStatus("");
     try {
       const provider = new GoogleAuthProvider();
       const userCredential = await signInWithPopup(auth, provider);
