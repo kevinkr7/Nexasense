@@ -1,32 +1,49 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   GoogleAuthProvider,
-  sendEmailVerification,
+  confirmPasswordReset,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
 } from "firebase/auth";
 import { auth } from "../firebase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { useAuth } from "@/context/AuthContext";
+import { AuthVideo } from "@/components/AuthVideo";
 
 const Login = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { isAuthenticated, isEmailVerified } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("");
-  const [resetStatus, setResetStatus] = useState("");
-  const [isSendingReset, setIsSendingReset] = useState(false);
-  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [isBusy, setIsBusy] = useState(false);
+  const [view, setView] = useState<"login" | "reset" | "new" | "success">(
+    "login"
+  );
+
+  const resetCode = useMemo(() => {
+    const mode = searchParams.get("mode");
+    const code = searchParams.get("oobCode");
+    return mode === "resetPassword" && code ? code : null;
+  }, [searchParams]);
 
   useEffect(() => {
     if (isAuthenticated && isEmailVerified) {
       navigate("/");
     }
   }, [isAuthenticated, isEmailVerified, navigate]);
+
+  useEffect(() => {
+    if (resetCode) {
+      setError("");
+      setView("new");
+    }
+  }, [resetCode]);
 
   // 🔒 OPTIONAL: protected API test (frontend only)
   const callProtectedAPI = async () => {
@@ -64,10 +81,7 @@ const Login = () => {
 
       const firebaseUser = userCredential.user;
       if (!firebaseUser.emailVerified) {
-        await sendEmailVerification(firebaseUser);
-        setStatus(
-          "Verification email sent. Please verify before logging in."
-        );
+        setError("Please verify your email before logging in.");
         return;
       }
 
@@ -97,10 +111,7 @@ const Login = () => {
       const userCredential = await signInWithPopup(auth, provider);
       const firebaseUser = userCredential.user;
       if (!firebaseUser.emailVerified) {
-        await sendEmailVerification(firebaseUser);
-        setStatus(
-          "Verification email sent. Please verify before logging in."
-        );
+        setError("Please verify your email before logging in.");
         return;
       }
       const token = await firebaseUser.getIdToken();
@@ -113,16 +124,13 @@ const Login = () => {
 
   const handlePasswordReset = async () => {
     setError("");
-    setStatus("");
-    setResetStatus("");
-    if (!email) {
-      setError("Enter your email to reset your password.");
+    if (!resetEmail) {
+      setError("Enter your email address.");
       return;
     }
     try {
-      setIsSendingReset(true);
-      await sendPasswordResetEmail(auth, email);
-      setResetStatus("Password reset email sent.");
+      setIsBusy(true);
+      await sendPasswordResetEmail(auth, resetEmail);
     } catch (err: any) {
       if (err?.code === "auth/invalid-email") {
         setError("Enter a valid email address.");
@@ -132,26 +140,28 @@ const Login = () => {
         setError("Failed to send reset email. Please try again.");
       }
     } finally {
-      setIsSendingReset(false);
+      setIsBusy(false);
     }
   };
 
-  const handleResendVerification = async () => {
-    setError("");
-    setStatus("");
-    setResetStatus("");
-    if (!auth.currentUser) {
-      setError("Please sign in to resend the verification email.");
+  const handleSetNewPassword = async () => {
+    if (!resetCode) {
+      setError("Reset link is missing or expired.");
       return;
     }
+    setError("");
     try {
-      setIsSendingVerification(true);
-      await sendEmailVerification(auth.currentUser);
-      setStatus("Verification email resent. Please check your inbox.");
-    } catch (err: any) {
-      setError("Unable to resend verification email.");
+      setIsBusy(true);
+      await confirmPasswordReset(auth, resetCode, resetPassword);
+      setView("success");
+      setTimeout(() => {
+        setView("login");
+        setResetPassword("");
+        setResetEmail("");
+        setSearchParams({});
+      }, 1500);
     } finally {
-      setIsSendingVerification(false);
+      setIsBusy(false);
     }
   };
 
@@ -160,100 +170,176 @@ const Login = () => {
       <Navigation />
       <div className="flex flex-1 items-stretch">
         <div className="hidden md:block md:w-1/2">
-          <video
-            className="h-full w-full object-cover"
-            src="/resources/ambient-study.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-          />
+          <AuthVideo />
         </div>
         <div className="flex w-full md:w-1/2 items-center justify-center px-6 py-12">
-          <div className="w-full max-w-md bg-card/90 backdrop-blur rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold text-center text-primary mb-2">
-              Welcome to NexaSense
-            </h2>
-            <p className="text-sm text-center text-muted-foreground mb-6">
-              Sign in to continue your learning journey.
-            </p>
+          <div className="w-full max-w-md bg-card/90 backdrop-blur rounded-2xl shadow-xl p-8 transition-opacity duration-300">
+            {view === "login" && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div>
+                  <h2 className="text-2xl font-bold text-center text-primary mb-2">
+                    Welcome to NexaSense
+                  </h2>
+                  <p className="text-sm text-center text-muted-foreground">
+                    Sign in to continue your learning journey.
+                  </p>
+                </div>
 
-            <form className="space-y-4" onSubmit={handleLogin}>
-              <input
-                type="email"
-                placeholder="Email"
-                className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+                <form className="space-y-4" onSubmit={handleLogin}>
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
 
-              <input
-                type="password"
-                placeholder="Password"
-                className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+                  <input
+                    type="password"
+                    placeholder="Password"
+                    className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
 
-              <div className="flex items-center justify-between text-sm">
+                  {error && (
+                    <p className="text-sm text-destructive text-center">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition duration-200"
+                  >
+                    Sign In
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    className="w-full border border-input text-foreground font-semibold py-3 rounded-lg transition duration-200 hover:bg-muted"
+                  >
+                    Continue with Google
+                  </button>
+                </form>
+
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError("");
+                      setView("reset");
+                    }}
+                    className="text-primary hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/register")}
+                    className="text-primary hover:underline"
+                  >
+                    Register
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {view === "reset" && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div>
+                  <h2 className="text-2xl font-bold text-center text-primary mb-2">
+                    Verify your account
+                  </h2>
+                  <p className="text-sm text-center text-muted-foreground">
+                    We'll send a secure reset link to your email.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                  />
+
+                  {error && (
+                    <p className="text-sm text-destructive text-center">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={isBusy}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition duration-200 disabled:opacity-70"
+                  >
+                    {isBusy ? "Sending..." : "Send reset link"}
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={handlePasswordReset}
-                  disabled={isSendingReset}
-                  className="text-primary hover:underline disabled:opacity-60"
+                  onClick={() => setView("login")}
+                  className="w-full text-sm text-muted-foreground hover:text-foreground"
                 >
-                  Forgot Password?
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResendVerification}
-                  disabled={isSendingVerification}
-                  className="text-muted-foreground hover:text-foreground disabled:opacity-60"
-                >
-                  Resend verification
+                  Back to sign in
                 </button>
               </div>
+            )}
 
-              {error && (
-                <p className="text-sm text-destructive text-center">{error}</p>
-              )}
-              {status && (
-                <p className="text-sm text-emerald-600 text-center">
-                  {status}
+            {view === "new" && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div>
+                  <h2 className="text-2xl font-bold text-center text-primary mb-2">
+                    Set a new password
+                  </h2>
+                  <p className="text-sm text-center text-muted-foreground">
+                    Choose a secure password to continue.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    className="w-full border border-input rounded-lg px-4 py-3 bg-background text-foreground placeholder:text-muted-foreground caret-primary focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                  />
+
+                  {error && (
+                    <p className="text-sm text-destructive text-center">
+                      {error}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSetNewPassword}
+                    disabled={isBusy}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition duration-200 disabled:opacity-70"
+                  >
+                    {isBusy ? "Updating..." : "Update password"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {view === "success" && (
+              <div className="space-y-4 text-center animate-in fade-in duration-300">
+                <h2 className="text-2xl font-bold text-primary">
+                  Password updated
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Returning you to sign in.
                 </p>
-              )}
-              {resetStatus && (
-                <p className="text-sm text-emerald-600 text-center">
-                  {resetStatus}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 rounded-lg transition duration-200"
-              >
-                Sign In
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGoogleLogin}
-                className="w-full border border-input text-foreground font-semibold py-3 rounded-lg transition duration-200 hover:bg-muted"
-              >
-                Continue with Google
-              </button>
-            </form>
-
-            <p className="text-center text-sm text-muted-foreground mt-6">
-              Don't have an account?{" "}
-              <button
-                type="button"
-                onClick={() => navigate("/register")}
-                className="text-primary hover:underline"
-              >
-                Register
-              </button>
-            </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
