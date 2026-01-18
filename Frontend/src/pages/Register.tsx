@@ -13,7 +13,7 @@ import { AuthVideo } from "@/components/AuthVideo";
 
 const Register = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isEmailVerified } = useAuth();
+  const { isAuthenticated, isEmailVerified, user, refreshUser } = useAuth();
   const [name, setName] = useState("");
   const [displayUsername, setDisplayUsername] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -48,11 +48,9 @@ const Register = () => {
         password
       );
 
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, {
-          displayName: displayUsername || name,
-        });
-      }
+      await updateProfile(userCredential.user, {
+        displayName: displayUsername || name,
+      });
 
       await setDoc(
         doc(db, "users", userCredential.user.uid, "profile", "info"),
@@ -80,11 +78,10 @@ const Register = () => {
     if (view !== "waiting") return;
     let isActive = true;
     const interval = setInterval(async () => {
-      if (!auth.currentUser) return;
-      await auth.currentUser.reload();
-      if (auth.currentUser.emailVerified && isActive) {
-        const token = await auth.currentUser.getIdToken();
-        localStorage.setItem("nexasense_token", token);
+      if (!user) return;
+      await user.reload();
+      refreshUser(user);
+      if (user.emailVerified && isActive) {
         setView("success");
         setTimeout(() => {
           navigate("/");
@@ -96,7 +93,7 @@ const Register = () => {
       isActive = false;
       clearInterval(interval);
     };
-  }, [navigate, view]);
+  }, [navigate, refreshUser, user, view]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-card to-accent/10 flex flex-col">

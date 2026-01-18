@@ -16,7 +16,7 @@ import { useNavigate } from "react-router-dom";
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { userId, userDisplayName, userEmail, userPhotoURL } = useAuth();
+  const { user, userId, userDisplayName, userEmail, userPhotoURL } = useAuth();
   const [displayName, setDisplayName] = useState(userDisplayName || "");
   const [bio, setBio] = useState("");
   const [photoPreview, setPhotoPreview] = useState<string | null>(
@@ -101,12 +101,12 @@ const Profile = () => {
   }, [userId, userDisplayName, userEmail]);
 
   const accountCreatedLabel = useMemo(() => {
-    const createdAt = auth.currentUser?.metadata.creationTime;
+    const createdAt = user?.metadata.creationTime;
     if (!createdAt) {
       return "Not available";
     }
     return new Date(createdAt).toLocaleDateString();
-  }, [userId]);
+  }, [user]);
 
   const handleSave = async () => {
     if (!userId) {
@@ -128,7 +128,7 @@ const Profile = () => {
         { merge: true }
       );
 
-      if (auth.currentUser) {
+      if (user) {
         const updates: { displayName?: string; photoURL?: string } = {};
         if (displayName) {
           updates.displayName = displayName;
@@ -137,7 +137,7 @@ const Profile = () => {
           updates.photoURL = photoDataUrl;
         }
         if (Object.keys(updates).length > 0) {
-          await updateProfile(auth.currentUser, updates);
+          await updateProfile(user, updates);
         }
       }
 
@@ -294,7 +294,6 @@ const Profile = () => {
                 variant="outline"
                 onClick={async () => {
                   await signOut(auth);
-                  localStorage.removeItem("nexasense_token");
                   navigate("/");
                 }}
               >

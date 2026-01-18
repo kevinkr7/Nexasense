@@ -46,10 +46,7 @@ const Login = () => {
   }, [resetCode]);
 
   // 🔒 OPTIONAL: protected API test (frontend only)
-  const callProtectedAPI = async () => {
-    const token = localStorage.getItem("nexasense_token");
-    console.log("Token from localStorage:", token);
-
+  const callProtectedAPI = async (token: string) => {
     try {
       const response = await fetch("http://localhost:8000/protected", {
         method: "POST",
@@ -87,11 +84,8 @@ const Login = () => {
       const token = await firebaseUser.getIdToken();
       console.log("Firebase ID Token:", token);
 
-      // 💾 Store token
-      localStorage.setItem("nexasense_token", token);
-
       // 🧪 Optional API test
-      await callProtectedAPI();
+      await callProtectedAPI(token);
 
       // 🚀 REDIRECT TO HOME
       navigate("/");
@@ -111,7 +105,7 @@ const Login = () => {
         return;
       }
       const token = await firebaseUser.getIdToken();
-      localStorage.setItem("nexasense_token", token);
+      await callProtectedAPI(token);
       navigate("/");
     } catch (err: any) {
       setError("Google sign-in failed");
