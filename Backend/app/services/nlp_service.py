@@ -1,3 +1,4 @@
+import importlib
 import re
 import unicodedata
 from collections import Counter
@@ -448,6 +449,85 @@ def _tokenize_terms(text: str) -> List[str]:
     return [token for token in tokens if len(token) >= 3]
 
 
+COMMON_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "because", "been", "being",
+    "between", "both", "but", "by", "can", "could", "did", "do", "does",
+    "during", "each", "for", "from", "had", "has", "have", "how", "if", "in",
+    "into", "is", "it", "its", "may", "more", "most", "not", "of", "on", "or",
+    "our", "over", "same", "should", "since", "so", "than", "that", "the",
+    "their", "there", "these", "this", "those", "through", "to", "under", "until",
+    "up", "using", "via", "was", "were", "what", "when", "where", "which", "while",
+    "who", "why", "with", "within", "without", "you", "your"
+}
+
+PREPOSITIONS = {
+    "about", "above", "across", "after", "against", "along", "among", "around",
+    "before", "behind", "below", "beneath", "beside", "besides", "beyond", "despite",
+    "down", "except", "inside", "near", "off", "onto", "outside", "past", "per",
+    "throughout", "toward", "towards", "under", "underneath", "unlike", "upon"
+}
+
+BLOCKED_CONCEPTS = COMMON_STOPWORDS | PREPOSITIONS | {
+    "generated", "concept", "concepts", "example", "examples", "note", "notes",
+    "summary", "study", "student", "students", "topic", "topics"
+}
+
+
+def _load_keyword_extractor():
+    yake = importlib.import_module("yake")
+
+    return yake.KeywordExtractor(
+        lan="en",
+        n=3,
+        dedupLim=0.85,
+        dedupFunc="seqm",
+        windowsSize=2,
+        top=20,
+    )
+
+
+_KEYWORD_EXTRACTOR = None
+
+
+def _get_keyword_extractor():
+    global _KEYWORD_EXTRACTOR
+    if _KEYWORD_EXTRACTOR is None:
+        _KEYWORD_EXTRACTOR = _load_keyword_extractor()
+    return _KEYWORD_EXTRACTOR
+
+
+def _normalize_concept_label(value: str) -> str:
+    normalized = re.sub(r"[^A-Za-z0-9+\-/. ]+", " ", value or "")
+    normalized = re.sub(r"\s+", " ", normalized).strip(" .,:;!?-_")
+    return normalized
+
+
+def _concept_tokens(value: str) -> List[str]:
+    return [token.lower() for token in re.findall(r"[A-Za-z][A-Za-z0-9+\-/.]*", value)]
+
+
+def _is_valid_concept(candidate: str) -> bool:
+    normalized = _normalize_concept_label(candidate)
+    if not normalized:
+        return False
+
+    tokens = _concept_tokens(normalized)
+    if not tokens or len(tokens) > 4:
+        return False
+
+    if all(token in BLOCKED_CONCEPTS for token in tokens):
+        return False
+
+    informative_tokens = [token for token in tokens if token not in BLOCKED_CONCEPTS]
+    if not informative_tokens:
+        return False
+
+    if len(informative_tokens) == 1 and len(informative_tokens[0]) < 4:
+        return False
+
+    return True
+
+
 def _basic_pos_tag(token: str) -> str:
     lower = token.lower()
 
@@ -484,11 +564,12 @@ def extract_named_entities(text: str) -> List[str]:
         label = ent.get("entity_group") or ent.get("entity")
         if label not in allowed:
             continue
-        entity_text = ent.get("word", "").strip()
-        if not entity_text:
+        entity_text = _normalize_concept_label(ent.get("word", ""))
+        if not _is_valid_concept(entity_text):
             continue
-        if entity_text not in seen:
-            seen.add(entity_text)
+        key = entity_text.lower()
+        if key not in seen:
+            seen.add(key)
             results.append(entity_text)
 
     return results
@@ -498,11 +579,37 @@ def _score_terms(tokens: Iterable[str]) -> List[Tuple[str, float]]:
     counts = Counter(tokens)
     scores = []
     for token, count in counts.items():
+        if token.lower() in BLOCKED_CONCEPTS:
+            continue
         pos = _basic_pos_tag(token)
-        pos_weight = 1.4 if pos in {"noun", "proper"} else 1.0
-        length_weight = 1 + (len(token) / 8)
+        if pos in {"adv", "verb"}:
+            continue
+        pos_weight = 1.5 if pos in {"noun", "proper"} else 1.0
+        length_weight = 1 + min(len(token), 18) / 10
         scores.append((token, count * length_weight * pos_weight))
     return scores
+
+
+def _extract_keyword_phrases(text: str) -> List[str]:
+    sanitized = sanitize_text(text)
+    if not sanitized:
+        return []
+
+    try:
+        extractor = _get_keyword_extractor()
+        raw_phrases = extractor.extract_keywords(sanitized)
+    except Exception as exc:
+        print(f"Keyword extraction fallback enabled: {exc}")
+        return []
+
+    phrases = []
+    for phrase, score in raw_phrases:
+        if score > 0.3:
+            continue
+        normalized = _normalize_concept_label(phrase)
+        if _is_valid_concept(normalized):
+            phrases.append(normalized)
+    return phrases
 
 
 def extract_key_concepts(text: str, limit: int = 8):
@@ -510,37 +617,54 @@ def extract_key_concepts(text: str, limit: int = 8):
     if not sanitized:
         return []
 
-    tokens = _tokenize_terms(sanitized)
-    if not tokens:
-        return []
-
-    # Keep high-signal entities to anchor domain-neutral concepts.
+    keyword_phrases = _extract_keyword_phrases(sanitized)
+    tokens = [token for token in _tokenize_terms(sanitized) if token.lower() not in BLOCKED_CONCEPTS]
     entities = extract_named_entities(sanitized)
-    entity_tokens = [entity for entity in entities if len(entity) >= 3]
 
-    scored = _score_terms(tokens + entity_tokens)
-    scored.sort(key=lambda item: (item[1], len(item[0])), reverse=True)
+    scored_tokens = _score_terms(tokens)
+    scored_tokens.sort(key=lambda item: (item[1], len(item[0])), reverse=True)
+
+    candidates = []
+    candidates.extend(keyword_phrases)
+    candidates.extend(entities)
+    candidates.extend(token for token, _ in scored_tokens)
+
     concepts = []
     seen = set()
-    for token, _ in scored:
-        lowered = token.lower()
-        if lowered in seen:
+    for candidate in candidates:
+        normalized = _normalize_concept_label(candidate)
+        if not _is_valid_concept(normalized):
             continue
-        seen.add(lowered)
-        concepts.append(token)
+        key = normalized.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        concepts.append(normalized)
         if len(concepts) >= limit:
             break
 
     return concepts
 
 
-def find_most_relevant_word(text: str) -> str:
-    concepts = extract_key_concepts(text, limit=1)
-    return concepts[0] if concepts else ""
+def _sentence_match_score(sentence: str, concept: str) -> float:
+    sentence_lower = sentence.lower()
+    concept_lower = concept.lower()
+    if concept_lower in sentence_lower:
+        return 10.0
 
-def find_most_relevant_word(text: str) -> str:
-    concepts = extract_key_concepts(text, limit=1)
-    return concepts[0] if concepts else ""
+    concept_tokens = [token for token in _concept_tokens(concept) if token not in BLOCKED_CONCEPTS]
+    if not concept_tokens:
+        return 0.0
+
+    score = 0.0
+    for token in concept_tokens:
+        if re.search(rf"\b{re.escape(token)}\b", sentence_lower):
+            score += 1.5
+    return score
+
+
+def _slugify_node_id(label: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "concept"
 
 
 def map_concepts_to_sentences(text: str, concepts):
@@ -548,29 +672,37 @@ def map_concepts_to_sentences(text: str, concepts):
     mapping = {concept: [] for concept in concepts}
 
     for concept in concepts:
+        ranked = []
         seen = set()
         for sentence in sentences:
-            if concept.lower() in sentence.lower():
-                key = sentence.lower()
-                if key not in seen:
-                    seen.add(key)
-                    mapping[concept].append(sentence.strip())
+            score = _sentence_match_score(sentence, concept)
+            if score <= 0:
+                continue
+            key = sentence.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            ranked.append((score, sentence.strip()))
+
+        ranked.sort(key=lambda item: (item[0], len(item[1])), reverse=True)
+        mapping[concept] = [sentence for _, sentence in ranked[:2]]
 
     return mapping
 
 
 def build_mindmap(text: str, title: str = "Main Topic"):
-    concepts = extract_key_concepts(text)
+    concepts = extract_key_concepts(text, limit=6)
     concept_map = map_concepts_to_sentences(text, concepts)
 
-    nodes = [{"id": "root", "label": title}]
+    nodes = [{"id": "root", "label": _normalize_concept_label(title) or "Main Topic"}]
     edges = []
 
     for concept in concepts:
-        node_id = f"node_{concept}"
+        concept_slug = _slugify_node_id(concept)
+        node_id = f"node_{concept_slug}"
         nodes.append({
             "id": node_id,
-            "label": concept.capitalize()
+            "label": concept
         })
 
         edges.append({
@@ -578,7 +710,7 @@ def build_mindmap(text: str, title: str = "Main Topic"):
             "to": node_id
         })
 
-        for i, sentence in enumerate(concept_map[concept][:1]):
+        for i, sentence in enumerate(concept_map[concept][:2]):
             detail_id = f"{node_id}_{i}"
             nodes.append({
                 "id": detail_id,
@@ -594,3 +726,8 @@ def build_mindmap(text: str, title: str = "Main Topic"):
         "nodes": nodes,
         "edges": edges
     }
+
+
+def find_most_relevant_word(text: str) -> str:
+    concepts = extract_key_concepts(text, limit=1)
+    return concepts[0] if concepts else ""

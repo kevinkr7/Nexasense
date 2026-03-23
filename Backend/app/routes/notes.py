@@ -10,6 +10,7 @@ from app.services.nlp_service import build_mindmap
 from app.services.nlp_service import find_most_relevant_word
 from app.services.analytics_service import log_event
 from app.services.knowledge_enrichment import enrich_summary
+from app.services.youtube_service import fetch_youtube_videos
 
 
 
@@ -75,6 +76,7 @@ def upload_note(
     ]
 
     enriched = enrich_summary(summary, concept_labels)
+    videos = fetch_youtube_videos(mindmap_title, concept_labels)
 
     # 4️⃣ Temporary response (Module 5 verification)
     return {
@@ -83,7 +85,8 @@ def upload_note(
         "simplified": simplified,
         "mostRelevantWord": most_relevant_word,
         "mindmap": mindmap,
-        "enriched": enriched
+        "enriched": enriched,
+        "videos": videos
     }
 
 

@@ -47,6 +47,17 @@ type NamedEntities =
     }
   | Array<{ label?: string; text?: string }>;
 
+type VideoResult = {
+  id: string;
+  title: string;
+  url: string;
+  channel?: string;
+  duration?: string;
+  thumbnail?: string;
+  description?: string;
+  query?: string;
+};
+
 type SummaryResponse = {
   note?: {
     fileName?: string;
@@ -59,6 +70,7 @@ type SummaryResponse = {
   mindmap?: MindmapResponse;
   enriched?: EnrichedSummary;
   entities?: NamedEntities;
+  videos?: VideoResult[];
 };
 
 type SlideItem = {
@@ -81,6 +93,8 @@ type ResourceItem = {
   category: ResourceCategory;
   tag?: string;
   badge?: string;
+  thumbnail?: string;
+  channel?: string;
 };
 
 const buildBulletPoints = (summary: string) => {
@@ -209,8 +223,28 @@ const buildSearchUrl = (baseUrl: string, query: string) =>
 
 const createVideoRecommendations = (
   topic: string,
-  concepts: string[]
+  concepts: string[],
+  videos: VideoResult[] = []
 ): ResourceItem[] => {
+  if (videos.length > 0) {
+    return videos.slice(0, 5).map((video, index) => ({
+      id: video.id || `video-${index}`,
+      title: video.title,
+      description:
+        video.description ||
+        "Matched YouTube lesson based on the extracted topic and concepts.",
+      url: video.url,
+      source: video.channel || "YouTube",
+      difficulty: index < 2 ? "Beginner" : index < 4 ? "Intermediate" : "Advanced",
+      duration: video.duration || "Watch on YouTube",
+      category: "video" as const,
+      tag: video.query || "Matched video",
+      thumbnail: video.thumbnail,
+      channel: video.channel || "YouTube",
+      badge: "Live result",
+    }));
+  }
+
   const sanitizedTopic = topic || "Study topic";
   const videoTemplates = [
     {
@@ -239,25 +273,24 @@ const createVideoRecommendations = (
     duration: index === 0 ? "10-18 min" : "12-20 min",
   }));
 
-  const recommendations = [...videoTemplates, ...conceptTemplates]
+  return [...videoTemplates, ...conceptTemplates]
     .slice(0, 5)
     .map((entry, index) => ({
       id: `video-${index}-${entry.query.toLowerCase().replace(/\s+/g, "-")}`,
       title: entry.query,
       description:
-        "Curated YouTube search focused on clear, instructor-led explanations.",
+        "Fallback YouTube search focused on clear, instructor-led explanations.",
       url: buildSearchUrl(
         "https://www.youtube.com/results?search_query=",
         entry.query
       ),
-      source: "YouTube • Suggested channels: Khan Academy, CrashCourse, MIT OCW",
+      source: "YouTube search",
       difficulty: entry.difficulty,
       duration: entry.duration,
       category: "video" as const,
-      tag: "Video explanation",
+      tag: "Fallback search",
+      channel: "Suggested channels: Khan Academy, CrashCourse, MIT OCW",
     }));
-
-  return recommendations;
 };
 
 const createReadingRecommendations = (
@@ -368,6 +401,7 @@ const Summarize = () => {
     undefined
   );
   const [noteMeta, setNoteMeta] = useState<SummaryResponse["note"]>(undefined);
+  const [videos, setVideos] = useState<VideoResult[]>([]);
   const [error, setError] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [activeConcept, setActiveConcept] = useState("");
@@ -417,11 +451,11 @@ const Summarize = () => {
       5
     );
     return {
-      videos: createVideoRecommendations(topic, concepts),
+      videos: createVideoRecommendations(topic, concepts, videos),
       readings: createReadingRecommendations(topic, concepts),
       practical: createPracticalRecommendations(topic, concepts),
     };
-  }, [mostRelevantWord, conceptNodes, summary]);
+  }, [mostRelevantWord, conceptNodes, summary, videos]);
 
   const handleConceptClick = (concept: string) => {
     setActiveConcept(concept);
@@ -440,6 +474,7 @@ const Summarize = () => {
     setEnriched(null);
     setEntities(undefined);
     setNoteMeta(undefined);
+    setVideos([]);
     setError("");
     setActiveConcept("");
     setActiveSlideIndex(2);
@@ -494,6 +529,7 @@ const Summarize = () => {
       setMindmap(data.mindmap ?? null);
       setEnriched(data.enriched ?? null);
       setEntities(data.entities);
+      setVideos(data.videos ?? []);
       setActiveConcept("");
       setActiveSlideIndex(2);
       setViewState("results");
@@ -569,9 +605,22 @@ const Summarize = () => {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
             {showThumbnail ? (
-              <div className="flex h-16 w-24 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent text-primary">
-                <PlayCircle className="h-6 w-6" />
-              </div>
+              resource.thumbnail ? (
+                <div className="relative h-16 w-24 overflow-hidden rounded-xl border border-border/50">
+                  <img
+                    src={resource.thumbnail}
+                    alt={resource.title}
+                    className="h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <PlayCircle className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex h-16 w-24 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent text-primary">
+                  <PlayCircle className="h-6 w-6" />
+                </div>
+              )
             ) : (
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted/60 text-primary">
                 {icon}
@@ -582,6 +631,11 @@ const Summarize = () => {
                 {resource.title}
               </p>
               <p className="text-xs text-muted-foreground">{resource.source}</p>
+              {resource.channel && resource.channel !== resource.source && (
+                <p className="text-[11px] text-muted-foreground/80">
+                  Channel: {resource.channel}
+                </p>
+              )}
               <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
                 <span className="rounded-full bg-primary/10 px-2 py-0.5 text-primary">
                   {resource.difficulty}
@@ -998,7 +1052,7 @@ const Summarize = () => {
                 </h3>
               </div>
               <span className="text-xs text-muted-foreground">
-                Curated playlist-style searches
+                {videos.length > 0 ? "Direct YouTube matches" : "Curated fallback searches"}
               </span>
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
