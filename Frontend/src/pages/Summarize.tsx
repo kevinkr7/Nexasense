@@ -12,6 +12,7 @@ import {
 import { db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { BookOpen, ExternalLink, PlayCircle, Wrench } from "lucide-react";
+import { pushQuizToEvalion } from "@/lib/pushQuizToEvalion";
 
 type MindmapNode = {
   id: string;
@@ -95,6 +96,12 @@ type ResourceItem = {
   badge?: string;
   thumbnail?: string;
   channel?: string;
+};
+
+type GeneratedQuizQuestion = {
+  question: string;
+  options: string[];
+  correctAnswer: string;
 };
 
 const buildBulletPoints = (summary: string) => {
@@ -389,6 +396,92 @@ const uniqueStrings = (values: string[]) => {
   });
 };
 
+const getSummarySentences = (text: string) =>
+  text
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 20);
+
+const generateQuickMcqSet = (
+  summaryText: string,
+  topic: string,
+  concepts: string[]
+): GeneratedQuizQuestion[] => {
+  const fallbackConcepts = [
+    "Core idea",
+    "Definition",
+    "Application",
+    "Example",
+    "Best practice",
+    "Constraint",
+    "Method",
+    "Outcome",
+  ];
+
+  const conceptPool = uniqueStrings([...concepts, ...fallbackConcepts]).slice(
+    0,
+    20
+  );
+  const sentencePool = getSummarySentences(summaryText);
+  const safeTopic = topic || conceptPool[0] || "the topic";
+  const quiz: GeneratedQuizQuestion[] = [];
+
+  for (let i = 0; i < 15; i += 1) {
+    const answer = conceptPool[i % conceptPool.length];
+    const distractors: string[] = [];
+    let offset = 1;
+    while (distractors.length < 3) {
+      const candidate = conceptPool[(i + offset) % conceptPool.length];
+      if (
+        candidate &&
+        candidate !== answer &&
+        !distractors.some(
+          (value) => value.toLowerCase() === candidate.toLowerCase()
+        )
+      ) {
+        distractors.push(candidate);
+      }
+      offset += 1;
+    }
+
+    const options = [answer, ...distractors].sort((a, b) =>
+      a.localeCompare(b)
+    );
+    const sentence = sentencePool[i % Math.max(sentencePool.length, 1)];
+    const questionVariant = i % 3;
+
+    if (questionVariant === 0) {
+      quiz.push({
+        question: `Which concept is most central to understanding ${safeTopic}?`,
+        options,
+        correctAnswer: answer,
+      });
+      continue;
+    }
+
+    if (questionVariant === 1 && sentence) {
+      quiz.push({
+        question: `Based on this summary statement, which concept fits best? "${sentence.slice(
+          0,
+          100
+        )}${sentence.length > 100 ? "..." : ""}"`,
+        options,
+        correctAnswer: answer,
+      });
+      continue;
+    }
+
+    quiz.push({
+      question: `If you were revising ${safeTopic}, which option should you focus on first?`,
+      options,
+      correctAnswer: answer,
+    });
+  }
+
+  return quiz;
+};
+
 const Summarize = () => {
   const { user, userId } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -421,6 +514,8 @@ const Summarize = () => {
   const [expandedResourceId, setExpandedResourceId] = useState<string | null>(
     null
   );
+  const [isPreparingQuickQuiz, setIsPreparingQuickQuiz] = useState(false);
+  const [quickQuizStatus, setQuickQuizStatus] = useState("");
 
   const bulletPoints = useMemo(() => buildBulletPoints(summary), [summary]);
   const evidenceMap = useMemo(() => buildEvidenceMap(mindmap ?? undefined), [
@@ -1177,6 +1272,33 @@ const Summarize = () => {
     }
   };
 
+  const handleQuickMcqTest = async () => {
+    if (isPreparingQuickQuiz) {
+      return;
+    }
+
+    setIsPreparingQuickQuiz(true);
+    setQuickQuizStatus("");
+
+    try {
+      const concepts = conceptNodes.map((node) => node.label);
+      const generatedQuiz = generateQuickMcqSet(
+        summary,
+        mostRelevantWord,
+        concepts
+      );
+      await pushQuizToEvalion(generatedQuiz);
+      setQuickQuizStatus("Quiz ready! Redirecting...");
+      window.setTimeout(() => {
+        window.location.href = "https://technical-quiz-1c612.web.app/";
+      }, 900);
+    } catch (quickQuizError) {
+      console.error("Failed to create quick MCQ set", quickQuizError);
+      setQuickQuizStatus("Could not create MCQ set. Please try again.");
+      setIsPreparingQuickQuiz(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
@@ -1335,6 +1457,30 @@ const Summarize = () => {
                     aria-label={`Go to ${slide.title}`}
                   />
                 ))}
+              </div>
+
+              <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-6">
+                <p className="text-xs uppercase tracking-wide text-primary">
+                  Quick practice
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-foreground">
+                  Take a quick MCQ test
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Generate an automatic set of 15 MCQs from your summary and
+                  save it to Firebase instantly.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleQuickMcqTest}
+                  disabled={isPreparingQuickQuiz}
+                  className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isPreparingQuickQuiz ? "Generating 15 MCQs..." : "Take Quick MCQ Test"}
+                </button>
+                {quickQuizStatus && (
+                  <p className="mt-3 text-sm text-primary">{quickQuizStatus}</p>
+                )}
               </div>
 
               {normalizedEntities &&

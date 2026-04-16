@@ -16,6 +16,7 @@ import {
   Target
 } from "lucide-react";
 import demoData from "@/data/demo.json";
+import { TakeAIQuizButton } from "@/components/TakeAIQuizButton";
 
 export const StudyPackViewer = () => {
   const [summaryMode, setSummaryMode] = useState<'compact' | 'detailed'>('compact');
@@ -198,14 +199,17 @@ export const StudyPackViewer = () => {
                     </div>
                   </div>
 
-                  <Button 
-                    variant="hero" 
-                    size="lg" 
-                    onClick={() => setQuizStarted(true)}
-                    className="px-8"
-                  >
-                    Start Quiz
-                  </Button>
+                  <div className="flex flex-col items-center gap-3">
+                    <Button 
+                      variant="hero" 
+                      size="lg" 
+                      onClick={() => setQuizStarted(true)}
+                      className="px-8"
+                    >
+                      Start Quiz
+                    </Button>
+                    <TakeAIQuizButton quizData={demoData.quizzes} />
+                  </div>
                 </div>
               ) : showResults ? (
                 <div className="text-center space-y-6">
