@@ -17,6 +17,7 @@ import Progress from "./pages/Progress";
 import Rewards from "./pages/Rewards";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Quiz from "./pages/Quiz";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -104,6 +105,15 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Profile />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/quiz"
+              element={
+                <ProtectedRoute>
+                  <Quiz />
                 </ProtectedRoute>
               }
             />

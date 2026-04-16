@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import {
   addDoc,
@@ -12,7 +13,6 @@ import {
 import { db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
 import { BookOpen, ExternalLink, PlayCircle, Wrench } from "lucide-react";
-import { pushQuizToEvalion } from "@/lib/pushQuizToEvalion";
 
 type MindmapNode = {
   id: string;
@@ -429,6 +429,11 @@ const generateQuickMcqSet = (
 
   for (let i = 0; i < 15; i += 1) {
     const answer = conceptPool[i % conceptPool.length];
+    const sentence = sentencePool[i % Math.max(sentencePool.length, 1)];
+    const sentenceText = sentence
+      ? sentence.slice(0, 120) + (sentence.length > 120 ? "..." : "")
+      : "";
+
     const distractors: string[] = [];
     let offset = 1;
     while (distractors.length < 3) {
@@ -448,32 +453,19 @@ const generateQuickMcqSet = (
     const options = [answer, ...distractors].sort((a, b) =>
       a.localeCompare(b)
     );
-    const sentence = sentencePool[i % Math.max(sentencePool.length, 1)];
-    const questionVariant = i % 3;
-
-    if (questionVariant === 0) {
-      quiz.push({
-        question: `Which concept is most central to understanding ${safeTopic}?`,
-        options,
-        correctAnswer: answer,
-      });
-      continue;
-    }
-
-    if (questionVariant === 1 && sentence) {
-      quiz.push({
-        question: `Based on this summary statement, which concept fits best? "${sentence.slice(
-          0,
-          100
-        )}${sentence.length > 100 ? "..." : ""}"`,
-        options,
-        correctAnswer: answer,
-      });
-      continue;
-    }
+    const questionVariant = i % 5;
+    const questionTemplates = [
+      `Which concept best anchors the topic "${safeTopic}"?`,
+      sentenceText
+        ? `This study note says: "${sentenceText}" Which concept is being highlighted most directly?`
+        : `Which concept is most likely to appear in an exam about "${safeTopic}"?`,
+      `Which option is the strongest revision target for mastering "${safeTopic}"?`,
+      `If one keyword had to represent this study pack, which is the best choice?`,
+      `Which concept should you connect first when building a mindmap for "${safeTopic}"?`,
+    ];
 
     quiz.push({
-      question: `If you were revising ${safeTopic}, which option should you focus on first?`,
+      question: questionTemplates[questionVariant],
       options,
       correctAnswer: answer,
     });
@@ -483,6 +475,7 @@ const generateQuickMcqSet = (
 };
 
 const Summarize = () => {
+  const navigate = useNavigate();
   const { user, userId } = useAuth();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [summary, setSummary] = useState("");
@@ -1248,6 +1241,37 @@ const Summarize = () => {
         </div>
       ),
     },
+    {
+      id: "quiz",
+      title: "Take test (Card 10)",
+      description:
+        "Generate 15 relevant MCQs from your notes and attempt them in a dedicated quiz page.",
+      content: (
+        <div className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-6">
+          <p className="text-xs uppercase tracking-wide text-primary">
+            Quiz card
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-foreground">
+            Take a quick MCQ test
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            We generate 15 context-aware questions using your summary and
+            extracted concepts, then log your result for learning analytics.
+          </p>
+          <button
+            type="button"
+            onClick={handleQuickMcqTest}
+            disabled={isPreparingQuickQuiz}
+            className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isPreparingQuickQuiz ? "Generating 15 MCQs..." : "Open Quiz"}
+          </button>
+          {quickQuizStatus && (
+            <p className="mt-3 text-sm text-primary">{quickQuizStatus}</p>
+          )}
+        </div>
+      ),
+    },
   ];
 
   const handleSlideChange = (index: number) => {
@@ -1272,7 +1296,7 @@ const Summarize = () => {
     }
   };
 
-  const handleQuickMcqTest = async () => {
+  async function handleQuickMcqTest() {
     if (isPreparingQuickQuiz) {
       return;
     }
@@ -1287,17 +1311,25 @@ const Summarize = () => {
         mostRelevantWord,
         concepts
       );
-      await pushQuizToEvalion(generatedQuiz);
-      setQuickQuizStatus("Quiz ready! Redirecting...");
+      const payload = {
+        generatedAt: Date.now(),
+        source: "summarize-card-10",
+        topic: mostRelevantWord || "General",
+        noteTitle: noteMeta?.fileName || "Uploaded note",
+        summaryPreview: summary.slice(0, 400),
+        questions: generatedQuiz,
+      };
+      localStorage.setItem("nexasense.quiz.current", JSON.stringify(payload));
+      setQuickQuizStatus("Quiz ready! Opening card 10...");
       window.setTimeout(() => {
-        window.location.href = "https://technical-quiz-1c612.web.app/";
-      }, 900);
+        navigate("/quiz");
+      }, 600);
     } catch (quickQuizError) {
       console.error("Failed to create quick MCQ set", quickQuizError);
       setQuickQuizStatus("Could not create MCQ set. Please try again.");
       setIsPreparingQuickQuiz(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -1457,30 +1489,6 @@ const Summarize = () => {
                     aria-label={`Go to ${slide.title}`}
                   />
                 ))}
-              </div>
-
-              <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-6">
-                <p className="text-xs uppercase tracking-wide text-primary">
-                  Quick practice
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-foreground">
-                  Take a quick MCQ test
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Generate an automatic set of 15 MCQs from your summary and
-                  save it to Firebase instantly.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleQuickMcqTest}
-                  disabled={isPreparingQuickQuiz}
-                  className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isPreparingQuickQuiz ? "Generating 15 MCQs..." : "Take Quick MCQ Test"}
-                </button>
-                {quickQuizStatus && (
-                  <p className="mt-3 text-sm text-primary">{quickQuizStatus}</p>
-                )}
               </div>
 
               {normalizedEntities &&
