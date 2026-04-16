@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import {
   addDoc,
@@ -11,14 +11,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { useAuth } from "@/context/AuthContext";
-import {
-  ArrowLeft,
-  ArrowRight,
-  BookOpen,
-  ExternalLink,
-  PlayCircle,
-  Wrench,
-} from "lucide-react";
+import { BookOpen, ExternalLink, PlayCircle, Wrench } from "lucide-react";
+import { pushQuizToEvalion } from "@/lib/pushQuizToEvalion";
 
 type MindmapNode = {
   id: string;
@@ -102,6 +96,12 @@ type ResourceItem = {
   badge?: string;
   thumbnail?: string;
   channel?: string;
+};
+
+type GeneratedQuizQuestion = {
+  question: string;
+  options: string[];
+  correctAnswer: string;
 };
 
 const buildBulletPoints = (summary: string) => {
@@ -234,7 +234,7 @@ const createVideoRecommendations = (
   videos: VideoResult[] = []
 ): ResourceItem[] => {
   if (videos.length > 0) {
-    return videos.slice(0, 6).map((video, index) => ({
+    return videos.slice(0, 5).map((video, index) => ({
       id: video.id || `video-${index}`,
       title: video.title,
       description:
@@ -248,12 +248,11 @@ const createVideoRecommendations = (
       tag: video.query || "Matched video",
       thumbnail: video.thumbnail,
       channel: video.channel || "YouTube",
-      badge: index < 3 ? "Top match" : "Live result",
+      badge: "Live result",
     }));
   }
 
   const sanitizedTopic = topic || "Study topic";
-  const trimmedConcepts = uniqueStrings(concepts).slice(0, 3);
   const videoTemplates = [
     {
       query: `${sanitizedTopic} explained`,
@@ -270,31 +269,19 @@ const createVideoRecommendations = (
       difficulty: "Intermediate" as const,
       duration: "6-10 min",
     },
-    {
-      query: `${sanitizedTopic} real world applications`,
-      difficulty: "Intermediate" as const,
-      duration: "8-14 min",
-    },
   ];
 
-  const conceptTemplates = trimmedConcepts.map((concept, index) => ({
+  const conceptTemplates = concepts.slice(0, 2).map((concept, index) => ({
     query:
       index === 0
         ? `${concept} detailed explanation`
-        : index === 1
-          ? `${concept} walkthrough`
-          : `${concept} mistakes to avoid`,
-    difficulty:
-      index === 0
-        ? ("Intermediate" as const)
-        : index === 1
-          ? ("Advanced" as const)
-          : ("Intermediate" as const),
-    duration: index === 0 ? "10-18 min" : index === 1 ? "12-20 min" : "7-12 min",
+        : `${concept} walkthrough`,
+    difficulty: index === 0 ? ("Intermediate" as const) : ("Advanced" as const),
+    duration: index === 0 ? "10-18 min" : "12-20 min",
   }));
 
   return [...videoTemplates, ...conceptTemplates]
-    .slice(0, 6)
+    .slice(0, 5)
     .map((entry, index) => ({
       id: `video-${index}-${entry.query.toLowerCase().replace(/\s+/g, "-")}`,
       title: entry.query,
@@ -409,33 +396,90 @@ const uniqueStrings = (values: string[]) => {
   });
 };
 
-const normalizeConceptLabel = (value: string) =>
-  value
-    .replace(/\s+/g, " ")
-    .replace(/[_-]/g, " ")
-    .replace(/[^\w\s/&(),.-]/g, "")
-    .trim();
+const getSummarySentences = (text: string) =>
+  text
+    .split(/\n+/)
+    .flatMap((line) => line.split(/(?<=[.!?])\s+/))
+    .map((line) => line.trim())
+    .filter((line) => line.length > 20);
 
-const isRelevantConcept = (value: string) => {
-  const normalized = value.trim().toLowerCase();
-  if (normalized.length < 3) {
-    return false;
+const generateQuickMcqSet = (
+  summaryText: string,
+  topic: string,
+  concepts: string[]
+): GeneratedQuizQuestion[] => {
+  const fallbackConcepts = [
+    "Core idea",
+    "Definition",
+    "Application",
+    "Example",
+    "Best practice",
+    "Constraint",
+    "Method",
+    "Outcome",
+  ];
+
+  const conceptPool = uniqueStrings([...concepts, ...fallbackConcepts]).slice(
+    0,
+    20
+  );
+  const sentencePool = getSummarySentences(summaryText);
+  const safeTopic = topic || conceptPool[0] || "the topic";
+  const quiz: GeneratedQuizQuestion[] = [];
+
+  for (let i = 0; i < 15; i += 1) {
+    const answer = conceptPool[i % conceptPool.length];
+    const distractors: string[] = [];
+    let offset = 1;
+    while (distractors.length < 3) {
+      const candidate = conceptPool[(i + offset) % conceptPool.length];
+      if (
+        candidate &&
+        candidate !== answer &&
+        !distractors.some(
+          (value) => value.toLowerCase() === candidate.toLowerCase()
+        )
+      ) {
+        distractors.push(candidate);
+      }
+      offset += 1;
+    }
+
+    const options = [answer, ...distractors].sort((a, b) =>
+      a.localeCompare(b)
+    );
+    const sentence = sentencePool[i % Math.max(sentencePool.length, 1)];
+    const questionVariant = i % 3;
+
+    if (questionVariant === 0) {
+      quiz.push({
+        question: `Which concept is most central to understanding ${safeTopic}?`,
+        options,
+        correctAnswer: answer,
+      });
+      continue;
+    }
+
+    if (questionVariant === 1 && sentence) {
+      quiz.push({
+        question: `Based on this summary statement, which concept fits best? "${sentence.slice(
+          0,
+          100
+        )}${sentence.length > 100 ? "..." : ""}"`,
+        options,
+        correctAnswer: answer,
+      });
+      continue;
+    }
+
+    quiz.push({
+      question: `If you were revising ${safeTopic}, which option should you focus on first?`,
+      options,
+      correctAnswer: answer,
+    });
   }
-  const blocked = new Set([
-    "thing",
-    "things",
-    "example",
-    "examples",
-    "data",
-    "result",
-    "results",
-    "note",
-    "notes",
-    "content",
-    "text",
-    "summary",
-  ]);
-  return !blocked.has(normalized);
+
+  return quiz;
 };
 
 const Summarize = () => {
@@ -463,7 +507,6 @@ const Summarize = () => {
   const panState = useRef({ isPanning: false, startX: 0, startY: 0 });
   const evidenceRef = useRef<HTMLDivElement | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(2);
-  const [revealedConceptCount, setRevealedConceptCount] = useState(4);
   const [viewState, setViewState] = useState<"upload" | "loading" | "results">(
     "upload"
   );
@@ -471,6 +514,8 @@ const Summarize = () => {
   const [expandedResourceId, setExpandedResourceId] = useState<string | null>(
     null
   );
+  const [isPreparingQuickQuiz, setIsPreparingQuickQuiz] = useState(false);
+  const [quickQuizStatus, setQuickQuizStatus] = useState("");
 
   const bulletPoints = useMemo(() => buildBulletPoints(summary), [summary]);
   const evidenceMap = useMemo(() => buildEvidenceMap(mindmap ?? undefined), [
@@ -484,31 +529,15 @@ const Summarize = () => {
     if (!mindmap?.nodes?.length) {
       return [];
     }
-    const normalized = mindmap.nodes
+    return mindmap.nodes
       .filter(
         (node) => node.id.startsWith("node_") && node.id.split("_").length === 2
       )
       .map((node) => ({
         id: node.id,
-        label: normalizeConceptLabel(node.label),
-      }))
-      .filter((node) => isRelevantConcept(node.label));
-
-    const seen = new Set<string>();
-    return normalized.filter((node) => {
-      const key = node.label.toLowerCase();
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
+        label: node.label,
+      }));
   }, [mindmap]);
-
-  const visibleConceptNodes = useMemo(
-    () => conceptNodes.slice(0, Math.max(1, revealedConceptCount)),
-    [conceptNodes, revealedConceptCount]
-  );
 
   const resourceRecommendations = useMemo(() => {
     const topic = mostRelevantWord || summary.split(" ").slice(0, 4).join(" ");
@@ -544,7 +573,6 @@ const Summarize = () => {
     setError("");
     setActiveConcept("");
     setActiveSlideIndex(2);
-    setRevealedConceptCount(4);
     setViewState("upload");
   };
 
@@ -599,7 +627,6 @@ const Summarize = () => {
       setVideos(data.videos ?? []);
       setActiveConcept("");
       setActiveSlideIndex(2);
-      setRevealedConceptCount(4);
       setViewState("results");
 
       await addDoc(collection(db, "users", userId, "notes"), {
@@ -951,8 +978,7 @@ const Summarize = () => {
     {
       id: "mindmap",
       title: "Mindmap visualization",
-      description:
-        "Interactive map: click root to reveal child concepts and click any concept to expand evidence.",
+      description: "Scroll to zoom and drag to pan the map.",
       content: mindmap?.nodes?.length ? (
         <div className="mt-4 overflow-hidden rounded-xl border border-border/50 bg-muted/20 p-2">
           <svg
@@ -995,16 +1021,13 @@ const Summarize = () => {
             <g
               transform={`translate(${mindmapPan.x} ${mindmapPan.y}) scale(${mindmapZoom})`}
             >
-              {visibleConceptNodes.map((concept, index) => {
+              {conceptNodes.map((concept, index) => {
                 const angle =
-                  (index / Math.max(visibleConceptNodes.length, 1)) *
-                  Math.PI *
-                  2;
+                  (index / Math.max(conceptNodes.length, 1)) * Math.PI * 2;
                 const radius = 140;
                 const x = Math.cos(angle) * radius;
                 const y = Math.sin(angle) * radius;
                 const relatedEvidence = evidenceMap[concept.label] ?? [];
-                const isActive = activeConcept === concept.label;
 
                 return (
                   <g key={concept.id} className="group">
@@ -1020,17 +1043,7 @@ const Summarize = () => {
                       cx={x}
                       cy={y}
                       r={28}
-                      className={`stroke-primary transition ${
-                        isActive
-                          ? "fill-primary/40"
-                          : "fill-primary/20 group-hover:fill-primary/30"
-                      }`}
-                      onClick={() =>
-                        setActiveConcept((prev) =>
-                          prev === concept.label ? "" : concept.label
-                        )
-                      }
-                      style={{ cursor: "pointer" }}
+                      className="fill-primary/20 stroke-primary transition group-hover:fill-primary/30"
                     />
                     <text
                       x={x}
@@ -1042,7 +1055,7 @@ const Summarize = () => {
                     >
                       {concept.label}
                     </text>
-                    {isActive && relatedEvidence.slice(0, 3).map((sentence, i) => {
+                    {relatedEvidence.slice(0, 2).map((sentence, i) => {
                       const detailRadius = radius + 70 + i * 50;
                       const detailX = Math.cos(angle) * detailRadius;
                       const detailY = Math.sin(angle) * detailRadius;
@@ -1084,12 +1097,6 @@ const Summarize = () => {
                 cy={0}
                 r={36}
                 className="fill-primary/30 stroke-primary"
-                onClick={() =>
-                  setRevealedConceptCount((prev) =>
-                    Math.min(conceptNodes.length, prev + 1)
-                  )
-                }
-                style={{ cursor: "pointer" }}
               />
               <text
                 x={0}
@@ -1102,8 +1109,7 @@ const Summarize = () => {
             </g>
           </svg>
           <p className="mt-2 text-xs text-muted-foreground">
-            Tip: scroll to zoom, drag to pan, click root to reveal next child,
-            and click a concept to expand evidence.
+            Tip: Use scroll to zoom and drag to explore the map.
           </p>
         </div>
       ) : (
@@ -1266,29 +1272,32 @@ const Summarize = () => {
     }
   };
 
-  useEffect(() => {
-    if (viewState !== "results") {
+  const handleQuickMcqTest = async () => {
+    if (isPreparingQuickQuiz) {
       return;
     }
 
-    const listener = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const tag = target?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || target?.isContentEditable) {
-        return;
-      }
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        setActiveSlideIndex((prev) => Math.max(0, prev - 1));
-      } else if (event.key === "ArrowRight") {
-        event.preventDefault();
-        setActiveSlideIndex((prev) => Math.min(slides.length - 1, prev + 1));
-      }
-    };
+    setIsPreparingQuickQuiz(true);
+    setQuickQuizStatus("");
 
-    window.addEventListener("keydown", listener);
-    return () => window.removeEventListener("keydown", listener);
-  }, [viewState, slides.length]);
+    try {
+      const concepts = conceptNodes.map((node) => node.label);
+      const generatedQuiz = generateQuickMcqSet(
+        summary,
+        mostRelevantWord,
+        concepts
+      );
+      await pushQuizToEvalion(generatedQuiz);
+      setQuickQuizStatus("Quiz ready! Redirecting...");
+      window.setTimeout(() => {
+        window.location.href = "https://technical-quiz-1c612.web.app/";
+      }, 900);
+    } catch (quickQuizError) {
+      console.error("Failed to create quick MCQ set", quickQuizError);
+      setQuickQuizStatus("Could not create MCQ set. Please try again.");
+      setIsPreparingQuickQuiz(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -1394,33 +1403,43 @@ const Summarize = () => {
                 </div>
               </div>
 
-              <div className="relative mt-8">
-                <div className="px-2">
-                  <div
-                    key={slides[activeSlideIndex]?.id}
-                    className="rounded-2xl border border-border/60 bg-background p-6 transition-all duration-300 ease-out animate-in fade-in-0 zoom-in-[0.98]"
-                  >
-                    {slides[activeSlideIndex]?.content}
-                  </div>
+              <div className="relative mt-8 overflow-hidden">
+                <div
+                  className="flex transition-transform duration-500 ease-in-out"
+                  style={{
+                    transform: `translateX(-${activeSlideIndex * 100}%)`,
+                  }}
+                >
+                  {slides.map((slide, index) => (
+                    <div key={slide.id} className="w-full flex-shrink-0 px-2">
+                      <div
+                        className={`min-h-[380px] rounded-2xl border border-border/60 bg-background p-6 transition-opacity duration-500 ${
+                          index === activeSlideIndex
+                            ? "opacity-100"
+                            : "opacity-0"
+                        }`}
+                      >
+                        {slide.content}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleSlideChange(activeSlideIndex - 1)}
                   disabled={activeSlideIndex === 0}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full border border-primary/20 bg-background/95 p-2 text-primary shadow-md transition hover:scale-105 hover:border-primary/50 hover:bg-primary/5 disabled:opacity-35"
-                  aria-label="Previous slide"
+                  className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full border border-border bg-background/90 px-3 py-2 text-sm font-semibold text-muted-foreground shadow transition hover:text-primary disabled:opacity-40"
                 >
-                  <ArrowLeft className="h-4 w-4" />
+                  ←
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSlideChange(activeSlideIndex + 1)}
                   disabled={activeSlideIndex === slides.length - 1}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 rounded-full border border-primary/20 bg-background/95 p-2 text-primary shadow-md transition hover:scale-105 hover:border-primary/50 hover:bg-primary/5 disabled:opacity-35"
-                  aria-label="Next slide"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 rounded-full border border-border bg-background/90 px-3 py-2 text-sm font-semibold text-muted-foreground shadow transition hover:text-primary disabled:opacity-40"
                 >
-                  <ArrowRight className="h-4 w-4" />
+                  →
                 </button>
               </div>
 
@@ -1432,12 +1451,36 @@ const Summarize = () => {
                     onClick={() => handleSlideChange(index)}
                     className={`h-2.5 w-2.5 rounded-full transition ${
                       index === activeSlideIndex
-                        ? "bg-primary shadow-[0_0_0_4px_rgba(59,130,246,0.15)]"
+                        ? "bg-primary"
                         : "bg-muted-foreground/40 hover:bg-primary/60"
                     }`}
                     aria-label={`Go to ${slide.title}`}
                   />
                 ))}
+              </div>
+
+              <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-6">
+                <p className="text-xs uppercase tracking-wide text-primary">
+                  Quick practice
+                </p>
+                <h2 className="mt-1 text-xl font-semibold text-foreground">
+                  Take a quick MCQ test
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Generate an automatic set of 15 MCQs from your summary and
+                  save it to Firebase instantly.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleQuickMcqTest}
+                  disabled={isPreparingQuickQuiz}
+                  className="mt-4 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {isPreparingQuickQuiz ? "Generating 15 MCQs..." : "Take Quick MCQ Test"}
+                </button>
+                {quickQuizStatus && (
+                  <p className="mt-3 text-sm text-primary">{quickQuizStatus}</p>
+                )}
               </div>
 
               {normalizedEntities &&
