@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
+import { MindMapThree } from "@/components/MindMapThree";
 import {
   addDoc,
   arrayUnion,
@@ -496,9 +497,6 @@ const Summarize = () => {
   const [explanationMode, setExplanationMode] = useState<"academic" | "simple">(
     "academic"
   );
-  const [mindmapZoom, setMindmapZoom] = useState(1);
-  const [mindmapPan, setMindmapPan] = useState({ x: 0, y: 0 });
-  const panState = useRef({ isPanning: false, startX: 0, startY: 0 });
   const evidenceRef = useRef<HTMLDivElement | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(2);
   const [viewState, setViewState] = useState<"upload" | "loading" | "results">(
@@ -979,139 +977,16 @@ const Summarize = () => {
       id: "mindmap",
       title: "Mindmap visualization",
       group: "Concept Mapping",
-      description: "Scroll to zoom and drag to pan the map.",
+      description: "Immersive 3D concept graph with animated nodes.",
       content: mindmap?.nodes?.length ? (
-        <div className="mt-4 overflow-hidden rounded-xl border border-border/50 bg-muted/20 p-2">
-          <svg
-            className="h-[420px] w-full touch-none"
-            viewBox="-300 -220 600 440"
-            onWheel={(event) => {
-              event.preventDefault();
-              const delta = event.deltaY > 0 ? -0.1 : 0.1;
-              setMindmapZoom((prev) =>
-                Math.min(2.4, Math.max(0.6, prev + delta))
-              );
-            }}
-            onPointerDown={(event) => {
-              panState.current = {
-                isPanning: true,
-                startX: event.clientX,
-                startY: event.clientY,
-              };
-            }}
-            onPointerMove={(event) => {
-              if (!panState.current.isPanning) {
-                return;
-              }
-              const dx = (event.clientX - panState.current.startX) / 4;
-              const dy = (event.clientY - panState.current.startY) / 4;
-              panState.current.startX = event.clientX;
-              panState.current.startY = event.clientY;
-              setMindmapPan((prev) => ({
-                x: prev.x + dx,
-                y: prev.y + dy,
-              }));
-            }}
-            onPointerUp={() => {
-              panState.current.isPanning = false;
-            }}
-            onPointerLeave={() => {
-              panState.current.isPanning = false;
-            }}
-          >
-            <g
-              transform={`translate(${mindmapPan.x} ${mindmapPan.y}) scale(${mindmapZoom})`}
-            >
-              {conceptNodes.map((concept, index) => {
-                const angle =
-                  (index / Math.max(conceptNodes.length, 1)) * Math.PI * 2;
-                const radius = 140;
-                const x = Math.cos(angle) * radius;
-                const y = Math.sin(angle) * radius;
-                const relatedEvidence = evidenceMap[concept.label] ?? [];
-
-                return (
-                  <g key={concept.id} className="group">
-                    <line
-                      x1={0}
-                      y1={0}
-                      x2={x}
-                      y2={y}
-                      stroke="currentColor"
-                      className="text-border"
-                    />
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r={28}
-                      className="fill-primary/20 stroke-primary transition group-hover:fill-primary/30"
-                    />
-                    <text
-                      x={x}
-                      y={y}
-                      textAnchor="middle"
-                      className="fill-primary text-[10px] font-semibold transition group-hover:fill-primary/80"
-                      onClick={() => handleConceptClick(concept.label)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {concept.label}
-                    </text>
-                    {relatedEvidence.slice(0, 2).map((sentence, i) => {
-                      const detailRadius = radius + 70 + i * 50;
-                      const detailX = Math.cos(angle) * detailRadius;
-                      const detailY = Math.sin(angle) * detailRadius;
-                      return (
-                        <g key={`${concept.id}-${i}`}>
-                          <line
-                            x1={x}
-                            y1={y}
-                            x2={detailX}
-                            y2={detailY}
-                            stroke="currentColor"
-                            className="text-border"
-                          />
-                          <circle
-                            cx={detailX}
-                            cy={detailY}
-                            r={20}
-                            className="fill-muted/50 stroke-border"
-                          />
-                          <text
-                            x={detailX}
-                            y={detailY}
-                            textAnchor="middle"
-                            className="fill-foreground text-[8px]"
-                          >
-                            {sentence.length > 22
-                              ? `${sentence.slice(0, 22)}…`
-                              : sentence}
-                          </text>
-                        </g>
-                      );
-                    })}
-                  </g>
-                );
-              })}
-
-              <circle
-                cx={0}
-                cy={0}
-                r={36}
-                className="fill-primary/30 stroke-primary"
-              />
-              <text
-                x={0}
-                y={0}
-                textAnchor="middle"
-                className="fill-primary text-[12px] font-semibold"
-              >
-                {mostRelevantWord || "Topic"}
-              </text>
-            </g>
-          </svg>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Tip: Use scroll to zoom and drag to explore the map.
-          </p>
+        <div className="mt-4">
+          <MindMapThree
+            topic={mostRelevantWord || "Topic"}
+            nodes={mindmap.nodes}
+            edges={mindmap.edges}
+            activeConcept={activeConcept}
+            onConceptClick={handleConceptClick}
+          />
         </div>
       ) : (
         <div className="mt-4 rounded-xl border border-border/50 bg-muted/20 p-4 text-sm text-muted-foreground">
@@ -1366,7 +1241,7 @@ const Summarize = () => {
     <div className="min-h-screen bg-background">
       <Navigation />
       <main className="min-h-[calc(100vh-80px)] px-6 py-12">
-        <div className="mx-auto w-full max-w-4xl">
+        <div className="mx-auto w-full max-w-7xl">
           {viewState === "upload" && (
             <div className="rounded-3xl border border-border bg-card p-8 shadow-lg">
               <div className="text-center">
@@ -1443,7 +1318,7 @@ const Summarize = () => {
 
           {viewState === "results" && (
             <div
-              className="rounded-3xl border border-border bg-card p-8 shadow-lg"
+              className="rounded-3xl border border-border bg-card p-10 shadow-lg"
               tabIndex={0}
               onKeyDown={handleSlideKeyDown}
             >
@@ -1466,7 +1341,7 @@ const Summarize = () => {
                 </div>
               </div>
 
-              <div className="mt-8 grid gap-5 lg:grid-cols-[270px_1fr]">
+              <div className="mt-8 grid gap-6 lg:grid-cols-[300px_1fr]">
                 <aside className="h-fit rounded-2xl border border-border/60 bg-muted/20 p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     Study tree
@@ -1503,7 +1378,7 @@ const Summarize = () => {
                   </div>
                 </aside>
 
-                <div className="rounded-2xl border border-border/60 bg-background p-6">
+                <div className="rounded-2xl border border-border/60 bg-background p-8">
                   {slides[activeSlideIndex]?.content}
                 </div>
               </div>
