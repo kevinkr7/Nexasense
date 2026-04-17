@@ -77,6 +77,7 @@ type SummaryResponse = {
 type SlideItem = {
   id: string;
   title: string;
+  group: "Foundation" | "Concept Mapping" | "Apply & Validate";
   description?: string;
   content: JSX.Element;
 };
@@ -787,6 +788,7 @@ const Summarize = () => {
     {
       id: "original",
       title: "Original uploaded content",
+      group: "Foundation",
       description: "Track the file you submitted and its processing state.",
       content: (
         <div className="mt-6 grid gap-4 text-sm sm:grid-cols-3">
@@ -816,6 +818,7 @@ const Summarize = () => {
     {
       id: "topic",
       title: "Most relevant topic",
+      group: "Foundation",
       description: "Use this as the mindmap root and study anchor.",
       content: (
         <div className="mt-6 rounded-2xl border border-border/60 bg-muted/20 p-6 text-center">
@@ -828,6 +831,7 @@ const Summarize = () => {
     {
       id: "points",
       title: "Study points",
+      group: "Foundation",
       description: "The default view for quick revision.",
       content: (
         <div className="mt-6 space-y-4">
@@ -856,6 +860,7 @@ const Summarize = () => {
     {
       id: "summary",
       title: "Academic summary",
+      group: "Foundation",
       description: "Scrollable summary you can copy for notes.",
       content: (
         <>
@@ -892,6 +897,7 @@ const Summarize = () => {
     {
       id: "simplified",
       title: "Simplified explanation",
+      group: "Foundation",
       description: "Toggle between academic and student-friendly language.",
       content: (
         <>
@@ -942,6 +948,7 @@ const Summarize = () => {
     {
       id: "concepts",
       title: "Key concepts & keywords",
+      group: "Concept Mapping",
       description: "Click a concept to jump to its evidence.",
       content: (
         <div className="mt-6 flex flex-wrap gap-2">
@@ -971,6 +978,7 @@ const Summarize = () => {
     {
       id: "mindmap",
       title: "Mindmap visualization",
+      group: "Concept Mapping",
       description: "Scroll to zoom and drag to pan the map.",
       content: mindmap?.nodes?.length ? (
         <div className="mt-4 overflow-hidden rounded-xl border border-border/50 bg-muted/20 p-2">
@@ -1127,6 +1135,7 @@ const Summarize = () => {
     {
       id: "resources",
       title: "Recommended learning resources",
+      group: "Apply & Validate",
       description:
         "Curated next steps based on your topic and key concepts.",
       content: (
@@ -1193,6 +1202,7 @@ const Summarize = () => {
     {
       id: "evidence",
       title: "Concept evidence",
+      group: "Concept Mapping",
       description: "Sentences supporting each concept.",
       content: (
         <div ref={evidenceRef} className="mt-6 space-y-4">
@@ -1244,6 +1254,7 @@ const Summarize = () => {
     {
       id: "quiz",
       title: "Take test (Card 10)",
+      group: "Apply & Validate",
       description:
         "Generate 15 relevant MCQs from your notes and attempt them in a dedicated quiz page.",
       content: (
@@ -1273,6 +1284,26 @@ const Summarize = () => {
       ),
     },
   ];
+
+  const groupedSlides = useMemo(() => {
+    const groups: Array<{
+      label: SlideItem["group"];
+      items: SlideItem[];
+    }> = [
+      { label: "Foundation", items: [] },
+      { label: "Concept Mapping", items: [] },
+      { label: "Apply & Validate", items: [] },
+    ];
+
+    slides.forEach((slide) => {
+      const target = groups.find((group) => group.label === slide.group);
+      if (target) {
+        target.items.push(slide);
+      }
+    });
+
+    return groups.filter((group) => group.items.length > 0);
+  }, [slides]);
 
   const handleSlideChange = (index: number) => {
     if (index < 0 || index >= slides.length) {
@@ -1435,47 +1466,57 @@ const Summarize = () => {
                 </div>
               </div>
 
-              <div className="relative mt-8 overflow-hidden">
-                <div
-                  className="flex transition-transform duration-500 ease-in-out"
-                  style={{
-                    transform: `translateX(-${activeSlideIndex * 100}%)`,
-                  }}
-                >
-                  {slides.map((slide, index) => (
-                    <div key={slide.id} className="w-full flex-shrink-0 px-2">
-                      <div
-                        className={`min-h-[380px] rounded-2xl border border-border/60 bg-background p-6 transition-opacity duration-500 ${
-                          index === activeSlideIndex
-                            ? "opacity-100"
-                            : "opacity-0"
-                        }`}
-                      >
-                        {slide.content}
+              <div className="mt-8 grid gap-5 lg:grid-cols-[270px_1fr]">
+                <aside className="h-fit rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Study tree
+                  </p>
+                  <div className="mt-3 space-y-4">
+                    {groupedSlides.map((group) => (
+                      <div key={group.label}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                          {group.label}
+                        </p>
+                        <div className="mt-2 space-y-1.5">
+                          {group.items.map((slide) => {
+                            const slideIndex = slides.findIndex(
+                              (item) => item.id === slide.id
+                            );
+                            return (
+                              <button
+                                key={slide.id}
+                                type="button"
+                                onClick={() => handleSlideChange(slideIndex)}
+                                className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition ${
+                                  slideIndex === activeSlideIndex
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border/60 bg-background text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                                }`}
+                              >
+                                {slideIndex + 1}. {slide.title}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </aside>
 
+                <div className="rounded-2xl border border-border/60 bg-background p-6">
+                  {slides[activeSlideIndex]?.content}
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => handleSlideChange(activeSlideIndex - 1)}
                   disabled={activeSlideIndex === 0}
-                  className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full border border-border bg-background/90 px-3 py-2 text-sm font-semibold text-muted-foreground shadow transition hover:text-primary disabled:opacity-40"
+                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:text-primary disabled:opacity-40"
                 >
-                  ←
+                  Previous
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleSlideChange(activeSlideIndex + 1)}
-                  disabled={activeSlideIndex === slides.length - 1}
-                  className="absolute right-0 top-1/2 -translate-y-1/2 rounded-full border border-border bg-background/90 px-3 py-2 text-sm font-semibold text-muted-foreground shadow transition hover:text-primary disabled:opacity-40"
-                >
-                  →
-                </button>
-              </div>
-
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
                 {slides.map((slide, index) => (
                   <button
                     key={slide.id}
@@ -1489,6 +1530,14 @@ const Summarize = () => {
                     aria-label={`Go to ${slide.title}`}
                   />
                 ))}
+                <button
+                  type="button"
+                  onClick={() => handleSlideChange(activeSlideIndex + 1)}
+                  disabled={activeSlideIndex === slides.length - 1}
+                  className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:text-primary disabled:opacity-40"
+                >
+                  Next
+                </button>
               </div>
 
               {normalizedEntities &&
