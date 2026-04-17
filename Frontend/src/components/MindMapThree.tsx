@@ -33,10 +33,10 @@ const loadThree = async () => {
   if (!window.__nexasenseThreeLoader) {
     window.__nexasenseThreeLoader = new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = "https://unpkg.com/three@0.161.0/build/three.min.js";
+      script.src = "/vendor/three.min.js";
       script.async = true;
       script.onload = () => resolve(window.THREE);
-      script.onerror = () => reject(new Error("Unable to load Three.js"));
+      script.onerror = () => reject(new Error("Unable to load Three.js from local asset."));
       document.head.appendChild(script);
     });
   }
@@ -65,13 +65,8 @@ const createTextSprite = (THREE: any, text: string) => {
   context.fillText(text.slice(0, 28), canvas.width / 2, canvas.height / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.needsUpdate = true;
-  const spriteMaterial = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-  });
-  const sprite = new THREE.Sprite(spriteMaterial);
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+  const sprite = new THREE.Sprite(material);
   sprite.scale.set(2.9, 0.75, 1);
   return sprite;
 };
@@ -84,30 +79,32 @@ export const MindMapThree = ({
   onConceptClick,
 }: MindMapThreeProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [loadError, setLoadError] = useState("");
+  const [isThreeUnavailable, setIsThreeUnavailable] = useState(false);
 
   const graphData = useMemo(() => {
-    const conceptNodes = nodes.filter(
-      (node) => node.id.startsWith("node_") && node.id.split("_").length === 2
-    );
-
-    const root = topic || "Topic";
+    const conceptNodes = nodes
+      .filter((node) => node.id.startsWith("node_") && node.id.split("_").length === 2)
+      .slice(0, 18);
 
     return {
-      root,
-      conceptNodes: conceptNodes.slice(0, 18),
+      root: topic || "Topic",
+      conceptNodes,
       edges,
     };
   }, [nodes, edges, topic]);
 
   useEffect(() => {
-    let isMounted = true;
+    if (isThreeUnavailable) {
+      return;
+    }
+
+    let disposed = false;
     let cleanup = () => {};
 
     const init = async () => {
       try {
         const THREE = await loadThree();
-        if (!isMounted || !containerRef.current || !THREE) {
+        if (!THREE || !containerRef.current || disposed) {
           return;
         }
 
@@ -130,8 +127,7 @@ export const MindMapThree = ({
         container.innerHTML = "";
         container.appendChild(renderer.domElement);
 
-        const ambient = new THREE.AmbientLight(0x88aaff, 0.7);
-        scene.add(ambient);
+        scene.add(new THREE.AmbientLight(0x88aaff, 0.7));
         const pointLight = new THREE.PointLight(0x7dd3fc, 1.4, 80);
         pointLight.position.set(8, 6, 12);
         scene.add(pointLight);
@@ -139,31 +135,10 @@ export const MindMapThree = ({
         const graphGroup = new THREE.Group();
         scene.add(graphGroup);
 
-        const stars = new THREE.Group();
-        for (let i = 0; i < 180; i += 1) {
-          const star = new THREE.Mesh(
-            new THREE.SphereGeometry(0.02 + Math.random() * 0.04, 8, 8),
-            new THREE.MeshBasicMaterial({ color: 0x9fb8ff })
-          );
-          star.position.set(
-            (Math.random() - 0.5) * 45,
-            (Math.random() - 0.5) * 26,
-            (Math.random() - 0.5) * 35
-          );
-          stars.add(star);
-        }
-        scene.add(stars);
-
         const rootMesh = new THREE.Mesh(
           new THREE.SphereGeometry(1.2, 48, 48),
-          new THREE.MeshPhongMaterial({
-            color: 0x2563eb,
-            emissive: 0x1d4ed8,
-            emissiveIntensity: 0.4,
-            shininess: 100,
-          })
+          new THREE.MeshPhongMaterial({ color: 0x2563eb, emissive: 0x1d4ed8, emissiveIntensity: 0.4 })
         );
-        rootMesh.userData = { concept: graphData.root };
         graphGroup.add(rootMesh);
 
         const rootLabel = createTextSprite(THREE, graphData.root);
@@ -173,47 +148,65 @@ export const MindMapThree = ({
         }
 
         const conceptObjects: any[] = [];
+        const lines: any[] = [];
         const radius = 6;
 
         graphData.conceptNodes.forEach((node, index) => {
           const angle = (index / Math.max(graphData.conceptNodes.length, 1)) * Math.PI * 2;
-          const vertical = Math.sin(index * 0.8) * 1.9;
+          const y = Math.sin(index * 0.8) * 1.9;
+          const position = new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
 
           const mesh = new THREE.Mesh(
             new THREE.SphereGeometry(0.55, 28, 28),
             new THREE.MeshPhongMaterial({
-              color:
-                activeConcept.toLowerCase() === node.label.toLowerCase()
-                  ? 0x38bdf8
-                  : 0x93c5fd,
-              emissive:
-                activeConcept.toLowerCase() === node.label.toLowerCase()
-                  ? 0x0ea5e9
-                  : 0x1d4ed8,
+              color: activeConcept.toLowerCase() === node.label.toLowerCase() ? 0x38bdf8 : 0x93c5fd,
+              emissive: 0x1d4ed8,
               emissiveIntensity: 0.28,
-              shininess: 90,
             })
           );
-
-          mesh.position.set(Math.cos(angle) * radius, vertical, Math.sin(angle) * radius);
+          mesh.position.copy(position);
           mesh.userData = { concept: node.label };
 
           const line = new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), mesh.position.clone()]),
+            new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), position]),
             new THREE.LineBasicMaterial({ color: 0x3b82f6, transparent: true, opacity: 0.35 })
           );
 
           graphGroup.add(mesh);
           graphGroup.add(line);
+          conceptObjects.push(mesh);
+          lines.push(line);
 
           const label = createTextSprite(THREE, node.label);
           if (label) {
-            label.position.copy(mesh.position.clone().add(new THREE.Vector3(0, -1, 0)));
+            label.position.copy(position.clone().add(new THREE.Vector3(0, -1, 0)));
             graphGroup.add(label);
           }
-
-          conceptObjects.push(mesh);
         });
+
+        if (graphData.edges.length > 0) {
+          const nodeMap = new Map<string, any>();
+          conceptObjects.forEach((mesh) => nodeMap.set(mesh.userData.concept, mesh.position));
+          graphData.edges.slice(0, 30).forEach((edge) => {
+            const fromLabel = nodes.find((n) => n.id === edge.from)?.label;
+            const toLabel = nodes.find((n) => n.id === edge.to)?.label;
+            if (!fromLabel || !toLabel) {
+              return;
+            }
+            const fromPoint = nodeMap.get(fromLabel);
+            const toPoint = nodeMap.get(toLabel);
+            if (!fromPoint || !toPoint) {
+              return;
+            }
+
+            const secondaryLine = new THREE.Line(
+              new THREE.BufferGeometry().setFromPoints([fromPoint.clone(), toPoint.clone()]),
+              new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.16 })
+            );
+            graphGroup.add(secondaryLine);
+            lines.push(secondaryLine);
+          });
+        }
 
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
@@ -225,11 +218,9 @@ export const MindMapThree = ({
 
           raycaster.setFromCamera(mouse, camera);
           const intersections = raycaster.intersectObjects(conceptObjects);
-          if (intersections.length > 0) {
-            const concept = intersections[0].object?.userData?.concept;
-            if (concept) {
-              onConceptClick(concept);
-            }
+          const concept = intersections[0]?.object?.userData?.concept;
+          if (concept) {
+            onConceptClick(concept);
           }
         };
 
@@ -245,22 +236,19 @@ export const MindMapThree = ({
           camera.updateProjectionMatrix();
           renderer.setSize(width, height);
         };
-
         window.addEventListener("resize", onResize);
 
         const clock = new THREE.Clock();
-        let frame = 0;
+        let frameId = 0;
 
         const animate = () => {
-          frame = requestAnimationFrame(animate);
-          const elapsed = clock.getElapsedTime();
+          frameId = requestAnimationFrame(animate);
+          const t = clock.getElapsedTime();
 
           graphGroup.rotation.y += 0.0025;
-          rootMesh.scale.setScalar(1 + Math.sin(elapsed * 1.8) * 0.05);
-          stars.rotation.y += 0.0008;
-
-          conceptObjects.forEach((object, index) => {
-            object.position.y += Math.sin(elapsed * 1.2 + index) * 0.0022;
+          rootMesh.scale.setScalar(1 + Math.sin(t * 1.8) * 0.05);
+          lines.forEach((line, index) => {
+            line.material.opacity = 0.15 + ((Math.sin(t + index * 0.3) + 1) / 2) * 0.3;
           });
 
           renderer.render(scene, camera);
@@ -269,16 +257,15 @@ export const MindMapThree = ({
         animate();
 
         cleanup = () => {
-          cancelAnimationFrame(frame);
+          cancelAnimationFrame(frameId);
           renderer.domElement.removeEventListener("pointerdown", onPointerDown);
           window.removeEventListener("resize", onResize);
-          container.innerHTML = "";
           renderer.dispose();
+          container.innerHTML = "";
         };
-      } catch (error) {
-        console.error("Three.js mindmap initialization failed", error);
-        if (isMounted) {
-          setLoadError("Could not load 3D mindmap in this environment.");
+      } catch {
+        if (!disposed) {
+          setIsThreeUnavailable(true);
         }
       }
     };
@@ -286,24 +273,58 @@ export const MindMapThree = ({
     init();
 
     return () => {
-      isMounted = false;
+      disposed = true;
       cleanup();
     };
-  }, [graphData, activeConcept, onConceptClick]);
+  }, [graphData, activeConcept, onConceptClick, isThreeUnavailable, nodes]);
 
   return (
     <div className="space-y-2">
-      <div
-        ref={containerRef}
-        className="h-[560px] w-full overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 shadow-[0_0_35px_rgba(59,130,246,0.35)]"
-      />
-      {loadError ? (
-        <p className="text-xs text-destructive">{loadError}</p>
+      {!isThreeUnavailable ? (
+        <div
+          ref={containerRef}
+          className="h-[560px] w-full overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 shadow-[0_0_35px_rgba(59,130,246,0.35)]"
+        />
       ) : (
-        <p className="text-xs text-muted-foreground">
-          Drag to inspect the 3D scene and click concept nodes to open evidence.
-        </p>
+        <div className="h-[560px] w-full overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 p-4">
+          <svg className="h-full w-full" viewBox="-360 -260 720 520">
+            <defs>
+              <radialGradient id="fallbackRoot" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor="#60a5fa" />
+                <stop offset="100%" stopColor="#1d4ed8" />
+              </radialGradient>
+            </defs>
+
+            <circle cx="0" cy="0" r="50" fill="url(#fallbackRoot)" />
+            <text x="0" y="5" textAnchor="middle" className="fill-white text-[13px] font-semibold">
+              {graphData.root}
+            </text>
+
+            {graphData.conceptNodes.map((node, index) => {
+              const angle = (index / Math.max(graphData.conceptNodes.length, 1)) * Math.PI * 2;
+              const x = Math.cos(angle) * 190;
+              const y = Math.sin(angle) * 190;
+              const selected = activeConcept.toLowerCase() === node.label.toLowerCase();
+
+              return (
+                <g key={node.id} onClick={() => onConceptClick(node.label)} style={{ cursor: "pointer" }}>
+                  <line x1={0} y1={0} x2={x} y2={y} stroke="#60a5fa" strokeOpacity="0.45" strokeWidth="1.5" />
+                  <circle cx={x} cy={y} r={selected ? 32 : 27} fill={selected ? "#0ea5e9" : "#93c5fd"} fillOpacity="0.82" />
+                  <text x={x} y={y + 4} textAnchor="middle" className="fill-slate-900 text-[10px] font-semibold">
+                    {node.label.slice(0, 13)}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+        </div>
       )}
+
+      <p className="text-xs text-muted-foreground">
+        {isThreeUnavailable
+          ? "Three.js asset not found in this deployment, so an interactive fallback map is shown."
+          : "Drag to inspect the 3D scene and click concept nodes to open evidence."}
+      </p>
     </div>
   );
 };
