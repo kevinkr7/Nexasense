@@ -592,7 +592,7 @@ const Summarize = () => {
       const formData = new FormData();
       formData.append("file", selectedFile);
 
-      const response = await fetch("http://localhost:8000/notes/upload", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/notes/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -8,6 +8,8 @@ from app.routes.profile import router as profile_router
 from app.routes.notes import router as notes_router
 
 
+import os
+
 app = FastAPI(title=settings.PROJECT_NAME)
 
 allowed_origins = [
@@ -18,6 +20,10 @@ allowed_origins = [
     "http://localhost:8080",
     "http://127.0.0.1:8080",
 ]
+
+frontend_url = os.environ.get("FRONTEND_URL")
+if frontend_url:
+    allowed_origins.append(frontend_url)
 
 
 app.add_middleware(

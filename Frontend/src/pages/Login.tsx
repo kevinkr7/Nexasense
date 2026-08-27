@@ -48,7 +48,7 @@ const Login = () => {
   // 🔒 OPTIONAL: protected API test (frontend only)
   const callProtectedAPI = async (token: string) => {
     try {
-      const response = await fetch("http://localhost:8000/protected", {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/protected`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
