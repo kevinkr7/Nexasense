@@ -1,0 +1,2 @@
+--update-env-vars:
+  FRONTEND_URL: "https://nexasense.kevinallen122451.workers.dev,https://nexasense.kevinography.in"

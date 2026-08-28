@@ -1,0 +1,1 @@
+gcloud run services update nexasense-backend --region us-central1 --project nexasensei --update-env-vars=^:^FRONTEND_URL=https://nexasense.kevinallen122451.workers.dev,https://nexasense.kevinography.in  
