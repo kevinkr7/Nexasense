@@ -1,3 +1,4 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
 fastapi
 uvicorn
 python-dotenv
@@ -9,7 +10,7 @@ opencv-python
 Pillow
 pdf2image
 numpy
-transformers
+transformers==4.38.2
 torch
 sentencepiece
 pdfplumber
