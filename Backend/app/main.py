@@ -23,7 +23,8 @@ allowed_origins = [
 
 frontend_url = os.environ.get("FRONTEND_URL")
 if frontend_url:
-    allowed_origins.append(frontend_url)
+    for url in frontend_url.split(","):
+        allowed_origins.append(url.strip())
 
 
 app.add_middleware(
